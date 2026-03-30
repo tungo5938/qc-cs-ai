@@ -9,16 +9,18 @@ from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, u
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
-    # Register Telegram webhook on startup
-    if settings.telegram_bot_token and settings.backend_base_url:
-        from telegram import Bot
-        bot = Bot(token=settings.telegram_bot_token)
-        webhook_url = f"{settings.backend_base_url.rstrip('/')}/api/telegram/webhook"
-        await bot.set_webhook(
-            url=webhook_url,
-            secret_token=settings.telegram_webhook_secret or None,
-            allowed_updates=["message"],
-        )
+    # Initialize and register Telegram bot
+    if settings.telegram_bot_token:
+        from services.telegram_service import get_application
+        application = get_application()
+        await application.initialize()
+        if settings.backend_base_url:
+            webhook_url = f"{settings.backend_base_url.rstrip('/')}/api/telegram/webhook"
+            await application.bot.set_webhook(
+                url=webhook_url,
+                secret_token=settings.telegram_webhook_secret or None,
+                allowed_updates=["message"],
+            )
     yield
     # Cleanup
     from services.telegram_service import _application
