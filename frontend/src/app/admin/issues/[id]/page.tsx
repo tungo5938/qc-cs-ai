@@ -66,11 +66,9 @@ export default function AdminIssueDetailPage() {
       {/* Root Cause (internal only) */}
       <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-3">
         <h2 className="font-semibold text-gray-900">Root Cause Analysis</h2>
-        {issue.ai_classification_raw?.["raw"] && (
+        {issue.ai_classification_raw && (
           <div className="bg-gray-50 rounded-lg p-3 text-xs text-gray-500 font-mono overflow-auto max-h-32">
-            {typeof issue.ai_classification_raw["raw"] === "string"
-              ? issue.ai_classification_raw["raw"].slice(0, 400)
-              : JSON.stringify(issue.ai_classification_raw, null, 2).slice(0, 400)}
+            {JSON.stringify(issue.ai_classification_raw, null, 2).slice(0, 400)}
           </div>
         )}
         <textarea
