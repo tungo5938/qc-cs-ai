@@ -1,0 +1,30 @@
+[project]
+name = "qc-cs-ai"
+
+[[services]]
+name = "backend"
+
+[services.build]
+builder = "DOCKERFILE"
+dockerfilePath = "backend/Dockerfile"
+
+[services.deploy]
+startCommand = "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port $PORT"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[[services]]
+name = "frontend"
+
+[services.build]
+builder = "DOCKERFILE"
+dockerfilePath = "frontend/Dockerfile"
+
+[services.deploy]
+startCommand = "node server.js"
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
