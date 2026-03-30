@@ -29,6 +29,7 @@ export interface Issue {
   root_cause?: string;
   submitted_by_email?: string;
   approved_by_email?: string;
+  ai_classification_raw?: Record<string, unknown>;
 }
 
 export interface KBEntry {
