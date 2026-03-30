@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import get_settings
-from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook
+from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, upload
 
 
 @asynccontextmanager
@@ -41,6 +41,7 @@ app.include_router(issues.router, prefix="/api")
 app.include_router(knowledge_base.router, prefix="/api")
 app.include_router(jira_webhook.router, prefix="/api")
 app.include_router(telegram_webhook.router, prefix="/api")
+app.include_router(upload.router, prefix="/api")
 
 
 @app.get("/health")

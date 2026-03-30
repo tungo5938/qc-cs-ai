@@ -19,7 +19,7 @@ from core.database import AsyncSessionLocal
 from models.issue import Issue, IssueType, IssueStatus, IssuePriority, IssueSource
 from models.telegram_thread import TelegramThread, QAState
 from models.base import gen_uuid
-from services import ai_service, kb_service, cloudinary_service
+from services import ai_service, kb_service
 
 _application: Application | None = None
 CONFIDENCE_THRESHOLD = 0.80
@@ -149,20 +149,16 @@ async def _handle_new_feedback(update: Update, context: ContextTypes.DEFAULT_TYP
 
         if msg.photo:
             largest = max(msg.photo, key=lambda p: p.file_size or 0)
+            tg_file = await context.bot.get_file(largest.file_id)
             image_bytes, mime_type = await _download_file(context.bot, largest.file_id)
-            result = await cloudinary_service.upload_bytes(image_bytes, temp_issue_id, largest.file_id)
-            media_urls.append(result["secure_url"])
+            media_urls.append(tg_file.file_path)
         elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
+            tg_file = await context.bot.get_file(msg.document.file_id)
             image_bytes, mime_type = await _download_file(context.bot, msg.document.file_id)
-            result = await cloudinary_service.upload_bytes(image_bytes, temp_issue_id, msg.document.file_name or "doc")
-            media_urls.append(result["secure_url"])
+            media_urls.append(tg_file.file_path)
         elif msg.video:
-            result = await cloudinary_service.upload_from_url(
-                (await context.bot.get_file(msg.video.file_id)).file_path,
-                temp_issue_id,
-                resource_type="video",
-            )
-            media_urls.append(result["secure_url"])
+            tg_file = await context.bot.get_file(msg.video.file_id)
+            media_urls.append(tg_file.file_path)
 
         # Create TelegramThread
         thread = TelegramThread(

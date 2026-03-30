@@ -5,32 +5,28 @@ import { api } from "@/lib/api";
 import EmailGate from "@/components/EmailGate";
 import { Upload, X } from "lucide-react";
 
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
 export default function SubmitPage() {
   const router = useRouter();
   const [form, setForm] = useState({ title: "", description: "", type: "bug" });
-  const [mediaUrls, setMediaUrls] = useState<string[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    setUploading(true);
-    const cloud = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-    const preset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-    const urls: string[] = [];
-    for (const file of files) {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("upload_preset", preset!);
-      fd.append("folder", "qc-cs-ai/portal");
-      const res = await fetch(`https://api.cloudinary.com/v1_1/${cloud}/auto/upload`, { method: "POST", body: fd });
-      const data = await res.json();
-      if (data.secure_url) urls.push(data.secure_url);
-    }
-    setMediaUrls((prev) => [...prev, ...urls]);
-    setUploading(false);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(e.target.files || []);
+    setFiles((prev) => [...prev, ...selected]);
+    selected.forEach((f) => {
+      const url = URL.createObjectURL(f);
+      setPreviews((prev) => [...prev, url]);
+    });
+  };
+
+  const removeFile = (i: number) => {
+    setFiles((prev) => prev.filter((_, j) => j !== i));
+    setPreviews((prev) => prev.filter((_, j) => j !== i));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -43,6 +39,19 @@ export default function SubmitPage() {
     if (!email) { setError("Please refresh and enter your email"); return; }
     setSubmitting(true);
     try {
+      // Upload files to backend
+      const mediaUrls: string[] = [];
+      for (const file of files) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch(`${BASE}/api/upload`, {
+          method: "POST",
+          headers: { "X-User-Email": email },
+          body: fd,
+        });
+        const data = await res.json();
+        if (data.url) mediaUrls.push(data.url);
+      }
       await api.issues.create({ ...form, media_urls: mediaUrls, submitted_by_email: email });
       router.push("/?submitted=1");
     } catch (err: any) {
@@ -101,21 +110,21 @@ export default function SubmitPage() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (images/video)</label>
             <label className="flex items-center gap-2 border-2 border-dashed border-gray-300 rounded-lg px-4 py-6 cursor-pointer hover:border-red-400 transition justify-center">
               <Upload className="w-5 h-5 text-gray-400" />
-              <span className="text-sm text-gray-500">{uploading ? "Uploading..." : "Click to upload"}</span>
-              <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={handleFileUpload} disabled={uploading} />
+              <span className="text-sm text-gray-500">Click to upload</span>
+              <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={handleFileChange} />
             </label>
-            {mediaUrls.length > 0 && (
+            {previews.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-2">
-                {mediaUrls.map((url, i) => (
+                {previews.map((url, i) => (
                   <div key={i} className="relative">
-                    {url.includes("/video/") ? (
+                    {files[i]?.type.startsWith("video/") ? (
                       <video src={url} className="w-20 h-20 object-cover rounded-lg" />
                     ) : (
                       <img src={url} alt="" className="w-20 h-20 object-cover rounded-lg" />
                     )}
                     <button
                       type="button"
-                      onClick={() => setMediaUrls((prev) => prev.filter((_, j) => j !== i))}
+                      onClick={() => removeFile(i)}
                       className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full w-4 h-4 flex items-center justify-center"
                     >
                       <X className="w-2.5 h-2.5" />
