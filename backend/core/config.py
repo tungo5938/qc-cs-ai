@@ -19,12 +19,6 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_model: str = "claude-sonnet-4-6"
 
-    # Cloudinary
-    cloudinary_cloud_name: str = ""
-    cloudinary_api_key: str = ""
-    cloudinary_api_secret: str = ""
-    cloudinary_upload_preset: str = ""
-
     # Jira
     jira_domain: str = ""
     jira_email: str = ""
