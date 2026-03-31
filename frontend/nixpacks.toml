@@ -1,0 +1,2 @@
+[start]
+cmd = "npx next start -p $PORT"
