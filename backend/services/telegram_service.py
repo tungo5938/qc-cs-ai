@@ -120,6 +120,8 @@ async def _finalize_issue(
 
 async def _handle_new_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point: new message with media in a monitored group."""
+    if not update.message:
+        return
     msg: Message = update.message
     settings = get_settings()
 
