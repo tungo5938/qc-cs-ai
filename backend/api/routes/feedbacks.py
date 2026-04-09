@@ -96,6 +96,7 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
         draft = SolutionDraft(
             id=gen_uuid(),
             feedback_id=feedback.id,
+            product_id=feedback.product_id,
             problem_statement=draft_data.get("problem_statement", ""),
             proposed_solution=draft_data.get("proposed_solution", ""),
             success_metrics=draft_data.get("success_metrics", ""),

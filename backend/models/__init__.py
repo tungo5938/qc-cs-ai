@@ -8,6 +8,7 @@ from models.scoring import ScoringConfig, TeamRaterConfig
 from models.product import Product
 from models.feedback import Feedback
 from models.feedback_analysis import FeedbackAnalysis
+from models.solution_draft import SolutionDraft
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -20,4 +21,5 @@ __all__ = [
     "Product",
     "Feedback",
     "FeedbackAnalysis",
+    "SolutionDraft",
 ]
