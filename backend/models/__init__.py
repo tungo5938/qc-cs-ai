@@ -6,6 +6,8 @@ from models.knowledge_base import KBEntry, KBSourceType
 from models.comment import Comment
 from models.scoring import ScoringConfig, TeamRaterConfig
 from models.product import Product
+from models.feedback import Feedback
+from models.feedback_analysis import FeedbackAnalysis
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -16,4 +18,6 @@ __all__ = [
     "Comment",
     "ScoringConfig", "TeamRaterConfig",
     "Product",
+    "Feedback",
+    "FeedbackAnalysis",
 ]

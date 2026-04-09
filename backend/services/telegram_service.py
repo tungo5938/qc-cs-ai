@@ -20,6 +20,8 @@ from core.config import get_settings
 from core.database import AsyncSessionLocal
 from models.issue import Issue, IssueType, IssueStatus, IssuePriority, IssueSource, TeamType
 from models.telegram_thread import TelegramThread, QAState
+from models.feedback import Feedback
+from models.product import Product
 from models.base import gen_uuid
 from services import ai_service, kb_service, scoring_service
 
@@ -184,6 +186,61 @@ async def _finalize_issue(
     return issue
 
 
+async def _handle_product_feedback(msg: Message, bot: Bot, product: Product):
+    """
+    Handle a message from a Telegram group that is mapped to a Product.
+    Creates a Feedback record, runs analysis pipeline, then replies to the group.
+    """
+    text_content = msg.caption or msg.text or ""
+    media_urls = []
+
+    if msg.photo:
+        largest = max(msg.photo, key=lambda p: p.file_size or 0)
+        tg_file = await bot.get_file(largest.file_id)
+        media_urls.append(tg_file.file_path)
+    elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
+        tg_file = await bot.get_file(msg.document.file_id)
+        media_urls.append(tg_file.file_path)
+    elif msg.video:
+        tg_file = await bot.get_file(msg.video.file_id)
+        media_urls.append(tg_file.file_path)
+
+    async with AsyncSessionLocal() as db:
+        feedback = Feedback(
+            id=gen_uuid(),
+            product_id=product.id,
+            raw_content=text_content or "(media only)",
+            media_urls=media_urls if media_urls else None,
+            submitted_by=msg.from_user.username or msg.from_user.first_name if msg.from_user else None,
+            source="telegram",
+            status="new",
+            telegram_message_id=str(msg.message_id),
+            telegram_group_id=str(msg.chat_id),
+        )
+        db.add(feedback)
+        await db.flush()
+
+        # Post acknowledgement to group before analysis
+        try:
+            await bot.send_message(
+                chat_id=msg.chat_id,
+                text=f"✅ Đã ghi nhận feedback cho {product.name}. Đang phân tích...",
+                reply_to_message_id=msg.message_id,
+            )
+        except Exception as e:
+            print(f"[TelegramBot] Failed to send ack message: {e}")
+
+        # Run analysis pipeline
+        try:
+            from api.routes.feedbacks import _run_analysis_pipeline
+            await _run_analysis_pipeline(db, feedback)
+        except Exception as e:
+            print(f"[TelegramBot] Analysis pipeline failed: {e}")
+
+        await db.commit()
+        print(f"[TelegramBot] Created feedback {feedback.id} for product {product.name}")
+
+
 async def _handle_new_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Entry point: new message with media in a monitored group."""
     if not update.message:
@@ -193,6 +250,20 @@ async def _handle_new_feedback(update: Update, context: ContextTypes.DEFAULT_TYP
     settings = get_settings()
 
     print(f"[TelegramBot] Message from chat_id={msg.chat_id}, monitored={settings.monitored_group_ids}, has_photo={bool(msg.photo)}")
+
+    # Check if this group is mapped to a Product in the products table
+    async with AsyncSessionLocal() as db:
+        product_result = await db.execute(
+            select(Product).where(Product.telegram_group_id == str(msg.chat_id))
+        )
+        product = product_result.scalar_one_or_none()
+
+    if product:
+        text_content = msg.caption or msg.text or ""
+        has_media = bool(msg.photo or msg.document or msg.video)
+        if has_media or len(text_content.strip()) >= 5:
+            await _handle_product_feedback(msg, context.bot, product)
+        return
 
     if msg.chat_id not in settings.monitored_group_ids:
         print(f"[TelegramBot] Ignoring chat_id={msg.chat_id} not in monitored list")

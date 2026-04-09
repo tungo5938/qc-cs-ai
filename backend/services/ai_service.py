@@ -169,3 +169,88 @@ async def generate_follow_up_question(classification: dict, round_num: int) -> s
             "Bạn gặp hạn chế này thường xuyên không? Trong trường hợp nào?",
         ]
     return questions[min(round_num - 1, len(questions) - 1)]
+
+
+ANALYZE_FEEDBACK_SYSTEM = """Bạn là AI phân tích feedback sản phẩm cho PM của GHN.
+Phân tích feedback sau và trả về JSON với các trường:
+- root_cause: str (nguyên nhân gốc rễ, tiếng Việt)
+- impact_level: "low" | "medium" | "high"
+- affected_area: "ui" | "logic" | "performance" | "integration" | "other"
+- kb_references: list[str] (các mục KB liên quan, có thể rỗng)
+- solution_hint: str (gợi ý giải pháp ngắn gọn)
+
+Chỉ trả về JSON hợp lệ, không có văn bản nào khác."""
+
+SOLUTION_DRAFT_SYSTEM = """Bạn là AI hỗ trợ PM tại GHN soạn thảo giải pháp cho feedback sản phẩm.
+Dựa trên nội dung feedback và phân tích đã có, tạo một solution draft với JSON gồm các trường:
+- problem_statement: str (mô tả vấn đề rõ ràng, tiếng Việt)
+- proposed_solution: str (giải pháp đề xuất chi tiết, tiếng Việt)
+- success_metrics: str (các chỉ số đo lường thành công, tiếng Việt)
+- effort_estimate: "S" | "M" | "L" | "XL"
+- open_questions: str (các câu hỏi cần làm rõ thêm, tiếng Việt)
+
+Chỉ trả về JSON hợp lệ, không có văn bản nào khác."""
+
+
+async def analyze_feedback(content: str, product_name: str, kb_context: str = "") -> dict:
+    """Analyze product feedback using GPT-4o. Returns parsed analysis dict."""
+    user_prompt = f"Sản phẩm: {product_name}\n\nFeedback:\n{content}"
+    if kb_context:
+        user_prompt += f"\n\nContext KB:\n{kb_context}"
+
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=1024,
+            messages=[
+                {"role": "system", "content": ANALYZE_FEEDBACK_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        raw = response.choices[0].message.content
+        result = _parse_json_response(raw)
+        return result
+    except Exception as e:
+        return {
+            "root_cause": None,
+            "impact_level": "medium",
+            "affected_area": "other",
+            "kb_references": [],
+            "solution_hint": "",
+            "error": str(e),
+        }
+
+
+async def generate_solution_draft(feedback_content: str, analysis: dict, product_name: str) -> dict:
+    """Generate a solution draft using GPT-4o. Returns parsed draft dict."""
+    user_prompt = (
+        f"Sản phẩm: {product_name}\n\n"
+        f"Feedback gốc:\n{feedback_content}\n\n"
+        f"Phân tích:\n"
+        f"- Nguyên nhân: {analysis.get('root_cause', '')}\n"
+        f"- Mức độ ảnh hưởng: {analysis.get('impact_level', '')}\n"
+        f"- Khu vực bị ảnh hưởng: {analysis.get('affected_area', '')}\n"
+        f"- Gợi ý: {analysis.get('solution_hint', '')}"
+    )
+
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=1024,
+            messages=[
+                {"role": "system", "content": SOLUTION_DRAFT_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        raw = response.choices[0].message.content
+        result = _parse_json_response(raw)
+        return result
+    except Exception as e:
+        return {
+            "problem_statement": feedback_content[:500],
+            "proposed_solution": "",
+            "success_metrics": "",
+            "effort_estimate": "M",
+            "open_questions": "",
+            "error": str(e),
+        }

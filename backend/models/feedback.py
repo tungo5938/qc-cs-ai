@@ -1,0 +1,40 @@
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
+from sqlalchemy import String, Text, ForeignKey, DateTime, func
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from core.database import Base
+from models.base import gen_uuid
+
+if TYPE_CHECKING:
+    from models.product import Product
+    from models.feedback_analysis import FeedbackAnalysis
+
+
+class Feedback(Base):
+    __tablename__ = "feedbacks"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=gen_uuid)
+    product_id: Mapped[str] = mapped_column(String(36), ForeignKey("products.id"), nullable=False)
+    raw_content: Mapped[str] = mapped_column(Text, nullable=False)
+    media_urls: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)
+    submitted_by: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(Text, nullable=False, default="manual")  # 'telegram' | 'manual'
+    status: Mapped[str] = mapped_column(Text, nullable=False, default="new")  # 'new' | 'analyzing' | 'analyzed' | 'solution_drafted'
+    telegram_message_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    telegram_group_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[object] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[object] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    # Relationships
+    product: Mapped[Optional["Product"]] = relationship("Product", foreign_keys=[product_id])
+    analysis: Mapped[Optional["FeedbackAnalysis"]] = relationship(
+        "FeedbackAnalysis", back_populates="feedback", uselist=False
+    )
+    solution_drafts: Mapped[list] = relationship(
+        "SolutionDraft", back_populates="feedback", uselist=True
+    )
