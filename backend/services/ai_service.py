@@ -221,6 +221,46 @@ async def analyze_feedback(content: str, product_name: str, kb_context: str = ""
         }
 
 
+EXTRACT_ACTION_ITEMS_SYSTEM = """Bạn là AI hỗ trợ PM. Từ notes cuộc họp sau, extract tất cả action items.
+Trả về JSON array, mỗi item có:
+- title: str (mô tả task ngắn gọn, tiếng Việt)
+- assignee: str | null (tên người được assign nếu có)
+- deadline: str | null (ISO date YYYY-MM-DD nếu mention, else null)
+
+Chỉ trả về JSON array hợp lệ, không có văn bản nào khác."""
+
+
+def _parse_json_array_response(text: str) -> list:
+    m = re.search(r"```(?:json)?\s*(\[.*?\])\s*```", text, re.DOTALL)
+    if m:
+        return json.loads(m.group(1))
+    m = re.search(r"\[.*\]", text, re.DOTALL)
+    if m:
+        return json.loads(m.group(0))
+    raise ValueError(f"No JSON array found in response: {text[:200]}")
+
+
+async def extract_action_items(meeting_notes: str, product_name: str) -> list[dict]:
+    """Extract action items from meeting notes using GPT-4o. Returns list of dicts."""
+    user_prompt = f"Sản phẩm: {product_name}\n\nNotes cuộc họp:\n{meeting_notes}"
+
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=1024,
+            messages=[
+                {"role": "system", "content": EXTRACT_ACTION_ITEMS_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        raw = response.choices[0].message.content
+        result = _parse_json_array_response(raw)
+        return result if isinstance(result, list) else []
+    except Exception as e:
+        print(f"[extract_action_items] failed: {e}")
+        return []
+
+
 async def generate_solution_draft(feedback_content: str, analysis: dict, product_name: str) -> dict:
     """Generate a solution draft using GPT-4o. Returns parsed draft dict."""
     user_prompt = (

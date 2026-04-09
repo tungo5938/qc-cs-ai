@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     jira_api_token: str = ""
     jira_webhook_secret: str = ""
 
+    # Notifications
+    pm_telegram_chat_id: str = ""
+
     # Access control
     pm_qc_emails: str = ""  # Comma-separated
 

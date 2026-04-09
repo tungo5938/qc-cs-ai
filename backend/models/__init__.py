@@ -9,6 +9,9 @@ from models.product import Product
 from models.feedback import Feedback
 from models.feedback_analysis import FeedbackAnalysis
 from models.solution_draft import SolutionDraft
+from models.meeting import Meeting
+from models.meeting_note import MeetingNote
+from models.action_item import ActionItem
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -22,4 +25,7 @@ __all__ = [
     "Feedback",
     "FeedbackAnalysis",
     "SolutionDraft",
+    "Meeting",
+    "MeetingNote",
+    "ActionItem",
 ]
