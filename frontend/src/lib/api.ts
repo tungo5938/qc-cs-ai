@@ -55,4 +55,10 @@ export const api = {
     importJira: (jira_url: string, email?: string) =>
       request<any>("/api/kb/import/jira", { method: "POST", body: JSON.stringify({ jira_url, imported_by_email: email }) }),
   },
+  products: {
+    list: () => request<any[]>("/api/products"),
+    create: (data: any) => request<any>("/api/products", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request<any>(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    delete: (id: string) => request<any>(`/api/products/${id}`, { method: "DELETE" }),
+  },
 };

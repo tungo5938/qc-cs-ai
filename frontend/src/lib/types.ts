@@ -64,3 +64,13 @@ export interface KBEntry {
   imported_by_email: string | null;
   created_at: string;
 }
+
+export interface Product {
+  id: string;
+  name: string;
+  telegram_group_id: string | null;
+  kb_gdoc_url: string | null;
+  jira_project_key: string | null;
+  color: string | null;
+  created_at: string;
+}

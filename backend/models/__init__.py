@@ -5,6 +5,7 @@ from models.vote import Vote, VoteType
 from models.knowledge_base import KBEntry, KBSourceType
 from models.comment import Comment
 from models.scoring import ScoringConfig, TeamRaterConfig
+from models.product import Product
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -14,4 +15,5 @@ __all__ = [
     "KBEntry", "KBSourceType",
     "Comment",
     "ScoringConfig", "TeamRaterConfig",
+    "Product",
 ]
