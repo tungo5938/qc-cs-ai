@@ -29,14 +29,19 @@ export default function NavBar() {
           <span className="font-semibold text-gray-900">QC CS AI</span>
         </a>
         <div className="flex items-center gap-4 text-sm">
-          <a href="/" className="text-gray-600 hover:text-gray-900">Issues</a>
+          <a href="/" className="text-gray-600 hover:text-gray-900">Vấn đề</a>
           {admin && (
-            <a href="/admin" className="text-gray-600 hover:text-gray-900 font-medium">
-              Admin
-            </a>
+            <>
+              <a href="/admin" className="text-gray-600 hover:text-gray-900 font-medium">
+                Quản trị
+              </a>
+              <a href="/admin/settings" className="text-gray-600 hover:text-gray-900 font-medium">
+                Cài đặt
+              </a>
+            </>
           )}
           <a href="/submit" className="bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 transition">
-            Report
+            Báo cáo
           </a>
           {email && (
             <span className="text-xs text-gray-400 hidden sm:block">{email}</span>

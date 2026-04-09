@@ -37,7 +37,7 @@ export default function KnowledgeBasePage() {
     setMsg("");
     try {
       const res = await api.kb.importGdoc(gdocUrl, sessionStorage.getItem("qc_user_email") || undefined);
-      setMsg(`Imported ${res.imported} entries`);
+      setMsg(`Đã nhập ${res.imported} mục`);
       setGdocUrl("");
       load();
     } catch (err: any) {
@@ -53,7 +53,7 @@ export default function KnowledgeBasePage() {
     setMsg("");
     try {
       await api.kb.importJira(jiraUrl, sessionStorage.getItem("qc_user_email") || undefined);
-      setMsg("Jira ticket imported to KB");
+      setMsg("Ticket Jira đã được nhập vào cơ sở tri thức");
       setJiraUrl("");
       load();
     } catch (err: any) {
@@ -66,16 +66,16 @@ export default function KnowledgeBasePage() {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Knowledge Base</h1>
-        <span className="text-sm text-gray-500">{entries.length} entries</span>
+        <h1 className="text-xl font-bold text-gray-900">Cơ sở tri thức</h1>
+        <span className="text-sm text-gray-500">{entries.length} mục</span>
       </div>
 
       <div className="flex gap-2">
         {[
-          { key: "list", label: "Entries" },
-          { key: "add", label: "+ Manual" },
-          { key: "gdoc", label: "Import Google Doc" },
-          { key: "jira", label: "Import Jira" },
+          { key: "list", label: "Danh sách" },
+          { key: "add", label: "+ Thủ công" },
+          { key: "gdoc", label: "Nhập Google Doc" },
+          { key: "jira", label: "Nhập Jira" },
         ].map(({ key, label }) => (
           <button
             key={key}
@@ -94,9 +94,9 @@ export default function KnowledgeBasePage() {
       {tab === "list" && (
         <div className="space-y-2">
           {loading ? (
-            <div className="text-center py-8 text-gray-400">Loading...</div>
+            <div className="text-center py-8 text-gray-400">Đang tải...</div>
           ) : entries.length === 0 ? (
-            <div className="text-center py-8 text-gray-400">No entries yet. Import from Google Doc or add manually.</div>
+            <div className="text-center py-8 text-gray-400">Chưa có mục nào. Nhập từ Google Doc hoặc thêm thủ công.</div>
           ) : (
             entries.map((entry) => (
               <div key={entry.id} className="bg-white rounded-xl border border-gray-200 p-4 flex gap-4">
@@ -119,29 +119,29 @@ export default function KnowledgeBasePage() {
 
       {tab === "add" && (
         <form onSubmit={addManual} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4 max-w-2xl">
-          <h2 className="font-semibold text-gray-900">Add Entry Manually</h2>
+          <h2 className="font-semibold text-gray-900">Thêm mục thủ công</h2>
           <input
             value={form.title}
             onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-            placeholder="Title"
+            placeholder="Tiêu đề"
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
           <textarea
             value={form.content}
             onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
-            placeholder="Content..."
+            placeholder="Nội dung..."
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 h-32 resize-none"
           />
           <button type="submit" className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition">
-            Add Entry
+            Thêm mục
           </button>
         </form>
       )}
 
       {tab === "gdoc" && (
         <form onSubmit={importGdoc} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4 max-w-2xl">
-          <h2 className="font-semibold text-gray-900">Import from Google Doc</h2>
-          <p className="text-sm text-gray-500">The document must be set to "Anyone with the link can view".</p>
+          <h2 className="font-semibold text-gray-900">Nhập từ Google Doc</h2>
+          <p className="text-sm text-gray-500">Tài liệu phải được đặt ở chế độ "Bất kỳ ai có link đều có thể xem".</p>
           <input
             value={gdocUrl}
             onChange={(e) => setGdocUrl(e.target.value)}
@@ -149,15 +149,15 @@ export default function KnowledgeBasePage() {
             className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
           />
           <button type="submit" disabled={importing || !gdocUrl} className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 transition">
-            {importing ? "Importing..." : "Import"}
+            {importing ? "Đang nhập..." : "Nhập"}
           </button>
         </form>
       )}
 
       {tab === "jira" && (
         <form onSubmit={importJira} className="bg-white rounded-xl border border-gray-200 p-5 space-y-4 max-w-2xl">
-          <h2 className="font-semibold text-gray-900">Import Jira Ticket to KB</h2>
-          <p className="text-sm text-gray-500">Paste a Jira URL — the ticket summary and description will be added as a KB entry.</p>
+          <h2 className="font-semibold text-gray-900">Nhập ticket Jira vào cơ sở tri thức</h2>
+          <p className="text-sm text-gray-500">Dán URL Jira — tiêu đề và mô tả ticket sẽ được thêm vào cơ sở tri thức.</p>
           <input
             value={jiraUrl}
             onChange={(e) => setJiraUrl(e.target.value)}

@@ -15,9 +15,8 @@ class Settings(BaseSettings):
     telegram_monitored_group_ids: str = ""   # Comma-separated group IDs
     telegram_announcement_group_id: str = ""
 
-    # Anthropic
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-sonnet-4-6"
+    # OpenAI
+    openai_api_key: str = ""
 
     # Jira
     jira_domain: str = ""

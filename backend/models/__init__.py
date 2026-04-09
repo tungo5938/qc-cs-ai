@@ -4,6 +4,7 @@ from models.telegram_thread import TelegramThread, QAState
 from models.vote import Vote, VoteType
 from models.knowledge_base import KBEntry, KBSourceType
 from models.comment import Comment
+from models.scoring import ScoringConfig, TeamRaterConfig
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -12,4 +13,5 @@ __all__ = [
     "Vote", "VoteType",
     "KBEntry", "KBSourceType",
     "Comment",
+    "ScoringConfig", "TeamRaterConfig",
 ]

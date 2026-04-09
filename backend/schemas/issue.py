@@ -1,7 +1,7 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
-from models.issue import IssueType, IssueStatus, IssuePriority, IssueSource
+from models.issue import IssueType, IssueStatus, IssuePriority, IssueSource, TeamType
 
 
 class JiraLinkOut(BaseModel):
@@ -23,10 +23,16 @@ class IssuePublic(BaseModel):
     status: IssueStatus
     priority: IssuePriority
     source: IssueSource
+    team: TeamType
     media_urls: list
     is_public: bool
-    vote_count: int = 0
     jira_link: Optional[JiraLinkOut] = None
+    # Scoring
+    user_rating: Optional[float] = None
+    po_rating: Optional[float] = None
+    tech_effort: Optional[int] = None
+    csat_score: Optional[float] = None
+    composite_score: Optional[float] = None
     created_at: datetime
     updated_at: datetime
 
@@ -38,6 +44,9 @@ class IssueInternal(IssuePublic):
     root_cause: Optional[str] = None
     submitted_by_email: Optional[str] = None
     approved_by_email: Optional[str] = None
+    user_rating_by: Optional[str] = None
+    po_rating_by: Optional[str] = None
+    effort_set_by: Optional[str] = None
     telegram_group_id: Optional[int] = None
     ai_classification_raw: Optional[dict] = None
 
@@ -46,6 +55,7 @@ class IssueCreate(BaseModel):
     title: str
     description: str
     type: IssueType = IssueType.unclear
+    team: TeamType = TeamType.unknown
     media_urls: list[str] = []
     submitted_by_email: str
 
@@ -55,6 +65,7 @@ class IssueUpdate(BaseModel):
     description: Optional[str] = None
     type: Optional[IssueType] = None
     priority: Optional[IssuePriority] = None
+    team: Optional[TeamType] = None
     root_cause: Optional[str] = None
     status: Optional[IssueStatus] = None
 

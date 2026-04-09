@@ -9,7 +9,7 @@ const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export default function SubmitPage() {
   const router = useRouter();
-  const [form, setForm] = useState({ title: "", description: "", type: "bug" });
+  const [form, setForm] = useState({ title: "", description: "", type: "bug", team: "unknown" });
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -32,11 +32,11 @@ export default function SubmitPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.description.trim()) {
-      setError("Title and description are required");
+      setError("Tiêu đề và mô tả là bắt buộc");
       return;
     }
     const email = sessionStorage.getItem("qc_user_email");
-    if (!email) { setError("Please refresh and enter your email"); return; }
+    if (!email) { setError("Vui lòng làm mới trang và nhập email"); return; }
     setSubmitting(true);
     try {
       // Upload files to backend
@@ -64,10 +64,10 @@ export default function SubmitPage() {
   return (
     <EmailGate>
       <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">Report a Bug or Request a Feature</h1>
+        <h1 className="text-2xl font-bold text-gray-900 mb-6">Báo lỗi hoặc Yêu cầu tính năng</h1>
         <form onSubmit={handleSubmit} className="space-y-5">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Loại</label>
             <div className="flex gap-3">
               {["bug", "feature_request"].map((t) => (
                 <label key={t} className="flex items-center gap-2 cursor-pointer">
@@ -79,38 +79,57 @@ export default function SubmitPage() {
                     onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
                     className="accent-red-600"
                   />
-                  <span className="text-sm">{t === "bug" ? "🐛 Bug" : "✨ Feature Request"}</span>
+                  <span className="text-sm">{t === "bug" ? "🐛 Lỗi" : "✨ Yêu cầu tính năng"}</span>
                 </label>
               ))}
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Team của bạn</label>
+            <div className="flex gap-3 flex-wrap">
+              {[["cs_b2c", "CS B2C"], ["cs_c2c", "CS C2C"], ["telesales", "Telesales"]].map(([val, label]) => (
+                <label key={val} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="team"
+                    value={val}
+                    checked={form.team === val}
+                    onChange={(e) => setForm((f) => ({ ...f, team: e.target.value }))}
+                    className="accent-red-600"
+                  />
+                  <span className="text-sm">{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tiêu đề *</label>
             <input
               value={form.title}
               onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-              placeholder="Short description of the issue"
+              placeholder="Mô tả ngắn về vấn đề"
               maxLength={200}
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Mô tả *</label>
             <textarea
               value={form.description}
               onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 h-32 resize-none"
-              placeholder="Steps to reproduce, expected vs actual behavior..."
+              placeholder="Các bước tái hiện, kết quả mong đợi và thực tế..."
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Attachments (images/video)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tệp đính kèm (ảnh/video)</label>
             <label className="flex items-center gap-2 border-2 border-dashed border-gray-300 rounded-lg px-4 py-6 cursor-pointer hover:border-red-400 transition justify-center">
               <Upload className="w-5 h-5 text-gray-400" />
-              <span className="text-sm text-gray-500">Click to upload</span>
+              <span className="text-sm text-gray-500">Nhấn để tải lên</span>
               <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={handleFileChange} />
             </label>
             {previews.length > 0 && (
@@ -143,14 +162,14 @@ export default function SubmitPage() {
               disabled={submitting}
               className="bg-red-600 text-white px-6 py-2.5 rounded-lg text-sm font-medium hover:bg-red-700 transition disabled:opacity-50"
             >
-              {submitting ? "Submitting..." : "Submit"}
+              {submitting ? "Đang gửi..." : "Gửi"}
             </button>
             <button type="button" onClick={() => router.back()} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2.5">
-              Cancel
+              Hủy
             </button>
           </div>
         </form>
-        <p className="text-xs text-gray-400 mt-4">Your submission will be reviewed by the QC team before going public.</p>
+        <p className="text-xs text-gray-400 mt-4">Phản hồi của bạn sẽ được đội QC xem xét trước khi hiển thị công khai.</p>
       </div>
     </EmailGate>
   );

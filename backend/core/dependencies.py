@@ -1,10 +1,11 @@
-from typing import Literal
+from __future__ import annotations
+from typing import Literal, Optional
 from fastapi import Header, Depends
 from core.config import Settings, get_settings
 
 
 def get_current_role(
-    x_user_email: str | None = Header(default=None),
+    x_user_email: Optional[str] = Header(default=None),
     settings: Settings = Depends(get_settings),
 ) -> Literal["pm_qc", "user", "anonymous"]:
     if not x_user_email:

@@ -1,31 +1,33 @@
+from __future__ import annotations
+from typing import Optional
 import json
 import re
 import base64
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 from core.config import get_settings
 from models.knowledge_base import KBEntry
 
-_client: AsyncAnthropic | None = None
+_client: Optional[AsyncOpenAI] = None
 
 
-def get_client() -> AsyncAnthropic:
+def get_client() -> AsyncOpenAI:
     global _client
     if _client is None:
-        _client = AsyncAnthropic(api_key=get_settings().anthropic_api_key)
+        _client = AsyncOpenAI(api_key=get_settings().openai_api_key)
     return _client
 
 
 def _kb_context(entries: list[KBEntry]) -> str:
     if not entries:
-        return "No knowledge base entries available."
+        return "Không có dữ liệu trong knowledge base."
     parts = []
     for e in entries:
-        parts.append(f"### {e.title}\n{e.content}")
+        ref = f" (Ref: {e.source_ref})" if e.source_ref else ""
+        parts.append(f"### {e.title}{ref}\n{e.content}")
     return "\n\n".join(parts)
 
 
 def _parse_json_response(text: str) -> dict:
-    """Extract JSON from Claude response, handling markdown fences."""
     m = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", text, re.DOTALL)
     if m:
         return json.loads(m.group(1))
@@ -35,25 +37,47 @@ def _parse_json_response(text: str) -> dict:
     raise ValueError(f"No JSON found in response: {text[:200]}")
 
 
-CLASSIFY_SYSTEM = """You are a QC analyst for GHN CS AI (a customer service AI product).
-Your job is to classify incoming feedback from QC/user teams.
+CLASSIFY_SYSTEM = """Bạn là chuyên gia phân tích QC cho hệ thống GHN CS AI (phần mềm hỗ trợ chăm sóc khách hàng).
+Nhiệm vụ của bạn là phân loại phản hồi từ các team CS B2C, CS C2C và Telesales.
 
 <knowledge_base>
 {kb_context}
 </knowledge_base>
 
-Classify the message/image as either a "bug" (something broken or wrong) or "feature_request" (new capability wanted).
-Use the knowledge base to understand the product and make accurate classifications.
+QUY TẮC PHÂN LOẠI:
+- "bug": Tính năng hoặc quy trình ĐÃ CÓ trong knowledge base nhưng đang hoạt động sai/không đúng kỳ vọng.
+- "feature_request": Yêu cầu chức năng CHƯA CÓ trong knowledge base, là điều mới hoàn toàn.
+- "unclear": Không đủ thông tin để phân loại.
 
-Respond ONLY with valid JSON in this exact format:
+NHẬN DIỆN TEAM:
+- "cs_b2c": Liên quan đến khách hàng cá nhân, giao hàng B2C, shipper, người nhận.
+- "cs_c2c": Liên quan đến giao dịch C2C, người gửi cá nhân.
+- "telesales": Liên quan đến bán hàng qua điện thoại, tư vấn khách hàng doanh nghiệp.
+- "unknown": Không xác định được team.
+
+PHÂN TÍCH NGUYÊN NHÂN GỐC RỄ:
+- Tham chiếu các ticket/entry trong knowledge base có liên quan
+- Nhóm theo loại vấn đề (UI, logic nghiệp vụ, tích hợp hệ thống, hiệu năng)
+- Nêu rõ entry KB nào liên quan bằng tiêu đề và ref nếu có
+
+ĐÁNH GIÁ MỨC ĐỘ ẢNH HƯỞNG ĐẾN KHÁCH HÀNG (CSAT score 1–10):
+- 1–3: Ít khách hàng bị ảnh hưởng, có workaround dễ dàng
+- 4–6: Một số khách hàng bị ảnh hưởng, trải nghiệm giảm nhưng vẫn dùng được
+- 7–8: Nhiều khách hàng bị ảnh hưởng đáng kể, khó có workaround
+- 9–10: Ảnh hưởng nghiêm trọng, khách hàng không thể sử dụng dịch vụ
+
+Trả lời ONLY bằng JSON hợp lệ theo đúng định dạng sau:
 {{
   "type": "bug" | "feature_request" | "unclear",
+  "team": "cs_b2c" | "cs_c2c" | "telesales" | "unknown",
   "confidence": 0.0-1.0,
   "priority": "low" | "medium" | "high" | "critical",
-  "title": "short title (max 100 chars)",
-  "description": "detailed description of the issue",
-  "root_cause_suggestion": "possible root cause based on knowledge base, or null",
-  "follow_up_question": "one specific follow-up question to ask if unclear, or null"
+  "title": "tiêu đề ngắn tối đa 100 ký tự",
+  "description": "mô tả chi tiết vấn đề bằng tiếng Việt",
+  "csat_score": 1-10,
+  "root_cause_suggestion": "phân tích nguyên nhân gốc rễ, tham chiếu KB nếu có, hoặc null",
+  "kb_references": ["Tiêu đề KB entry liên quan 1", "Tiêu đề KB entry liên quan 2"],
+  "follow_up_question": "một câu hỏi cụ thể bằng tiếng Việt nếu cần làm rõ, hoặc null"
 }}"""
 
 
@@ -63,29 +87,30 @@ async def classify_image(
     kb_entries: list[KBEntry],
     text_context: str = "",
 ) -> dict:
-    """Classify a screenshot/image. Returns structured classification dict."""
-    settings = get_settings()
     b64 = base64.standard_b64encode(image_bytes).decode()
+    data_url = f"data:{mime_type};base64,{b64}"
 
     content = []
     if text_context:
-        content.append({"type": "text", "text": f"User message: {text_context}\n\nScreenshot:"})
+        content.append({"type": "text", "text": f"Tin nhắn của người dùng: {text_context}\n\nẢnh chụp màn hình:"})
     else:
-        content.append({"type": "text", "text": "Analyze this screenshot:"})
+        content.append({"type": "text", "text": "Phân tích ảnh chụp màn hình này:"})
 
     content.append({
-        "type": "image",
-        "source": {"type": "base64", "media_type": mime_type, "data": b64},
+        "type": "image_url",
+        "image_url": {"url": data_url, "detail": "high"},
     })
-    content.append({"type": "text", "text": "Classify this feedback and respond with JSON."})
+    content.append({"type": "text", "text": "Phân loại phản hồi này và trả lời bằng JSON."})
 
-    response = await get_client().messages.create(
-        model=settings.anthropic_model,
+    response = await get_client().chat.completions.create(
+        model="gpt-4o",
         max_tokens=1024,
-        system=CLASSIFY_SYSTEM.format(kb_context=_kb_context(kb_entries)),
-        messages=[{"role": "user", "content": content}],
+        messages=[
+            {"role": "system", "content": CLASSIFY_SYSTEM.format(kb_context=_kb_context(kb_entries))},
+            {"role": "user", "content": content},
+        ],
     )
-    raw = response.content[0].text
+    raw = response.choices[0].message.content
     result = _parse_json_response(raw)
     result["_raw"] = raw
     return result
@@ -93,63 +118,54 @@ async def classify_image(
 
 async def classify_with_context(
     original_text: str,
-    original_image_url: str | None,
+    original_image_url: Optional[str],
     replies: list[str],
     kb_entries: list[KBEntry],
 ) -> dict:
-    """Classify with accumulated Q&A context (no image re-fetch needed)."""
-    settings = get_settings()
-
-    conversation = []
-    user_content = []
+    user_text = f"Tin nhắn gốc: {original_text}"
     if original_image_url:
-        user_content.append({"type": "text", "text": f"Original message: {original_text}\n\nOriginal screenshot: {original_image_url}"})
-    else:
-        user_content.append({"type": "text", "text": f"Original message: {original_text}"})
-
+        user_text += f"\n\nLink ảnh: {original_image_url}"
     if replies:
-        user_content.append({"type": "text", "text": "\n\nFollow-up answers:\n" + "\n".join(f"- {r}" for r in replies)})
+        user_text += "\n\nCâu trả lời bổ sung:\n" + "\n".join(f"- {r}" for r in replies)
+    user_text += "\n\nPhân loại phản hồi này và trả lời bằng JSON."
 
-    user_content.append({"type": "text", "text": "\nClassify this feedback and respond with JSON."})
-    conversation.append({"role": "user", "content": user_content})
-
-    response = await get_client().messages.create(
-        model=settings.anthropic_model,
+    response = await get_client().chat.completions.create(
+        model="gpt-4o",
         max_tokens=1024,
-        system=CLASSIFY_SYSTEM.format(kb_context=_kb_context(kb_entries)),
-        messages=conversation,
+        messages=[
+            {"role": "system", "content": CLASSIFY_SYSTEM.format(kb_context=_kb_context(kb_entries))},
+            {"role": "user", "content": user_text},
+        ],
     )
-    raw = response.content[0].text
+    raw = response.choices[0].message.content
     result = _parse_json_response(raw)
     result["_raw"] = raw
     return result
 
 
 async def generate_kb_summary(raw_content: str) -> str:
-    """Condense raw Jira/doc content into a structured KB summary."""
-    settings = get_settings()
-    response = await get_client().messages.create(
-        model=settings.anthropic_model,
+    response = await get_client().chat.completions.create(
+        model="gpt-4o",
         max_tokens=512,
-        system="You are a technical writer. Summarize the following content into a concise, structured knowledge base entry. Focus on facts useful for bug classification and root cause analysis. Keep it under 300 words.",
-        messages=[{"role": "user", "content": raw_content}],
+        messages=[
+            {"role": "system", "content": "Bạn là technical writer. Tóm tắt nội dung sau thành một knowledge base entry ngắn gọn, có cấu trúc. Tập trung vào các sự kiện hữu ích cho việc phân loại lỗi và phân tích nguyên nhân. Giữ dưới 300 từ. Viết bằng tiếng Việt."},
+            {"role": "user", "content": raw_content},
+        ],
     )
-    return response.content[0].text
+    return response.choices[0].message.content
 
 
 async def generate_follow_up_question(classification: dict, round_num: int) -> str:
-    """Generate a targeted follow-up question based on current classification."""
     if classification.get("follow_up_question"):
         return classification["follow_up_question"]
-    # Fallback questions based on type
     if classification.get("type") == "bug":
         questions = [
-            "Can you describe the exact steps to reproduce this issue?",
-            "What was the expected behavior vs what actually happened?",
+            "Bạn có thể mô tả các bước để tái hiện lỗi này không?",
+            "Kết quả mong đợi là gì và thực tế xảy ra như thế nào?",
         ]
     else:
         questions = [
-            "What specific problem would this feature solve for you?",
-            "How often do you encounter the limitation this feature would address?",
+            "Tính năng này sẽ giải quyết vấn đề cụ thể nào cho bạn?",
+            "Bạn gặp hạn chế này thường xuyên không? Trong trường hợp nào?",
         ]
     return questions[min(round_num - 1, len(questions) - 1)]

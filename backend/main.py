@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import get_settings
-from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, upload
+from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, upload, scoring
 
 
 @asynccontextmanager
@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
         from services.telegram_service import get_application
         application = get_application()
         await application.initialize()
-        if settings.backend_base_url:
+        if settings.backend_base_url and settings.backend_base_url.startswith("https://"):
             webhook_url = f"{settings.backend_base_url.rstrip('/')}/api/telegram/webhook"
             await application.bot.set_webhook(
                 url=webhook_url,
@@ -44,8 +44,9 @@ app.include_router(knowledge_base.router, prefix="/api")
 app.include_router(jira_webhook.router, prefix="/api")
 app.include_router(telegram_webhook.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
+app.include_router(scoring.router, prefix="/api")
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "ai": "openai-v2"}

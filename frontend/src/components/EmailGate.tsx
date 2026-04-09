@@ -22,7 +22,7 @@ export default function EmailGate({ children }: Props) {
     e.preventDefault();
     const trimmed = input.trim().toLowerCase();
     if (!GHN_EMAIL_REGEX.test(trimmed)) {
-      setError("Please enter a valid @ghn.vn or @ghn.com.vn email");
+      setError("Vui lòng nhập email @ghn.vn hoặc @ghn.com.vn hợp lệ");
       return;
     }
     sessionStorage.setItem("qc_user_email", trimmed);
@@ -40,7 +40,7 @@ export default function EmailGate({ children }: Props) {
               <span className="text-white font-bold text-xl">Q</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">QC CS AI</h1>
-            <p className="text-gray-500 text-sm mt-1">Enter your GHN email to continue</p>
+            <p className="text-gray-500 text-sm mt-1">Nhập email GHN của bạn để tiếp tục</p>
           </div>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -48,7 +48,7 @@ export default function EmailGate({ children }: Props) {
                 type="email"
                 value={input}
                 onChange={(e) => { setInput(e.target.value); setError(""); }}
-                placeholder="yourname@ghn.vn"
+                placeholder="tenban@ghn.vn"
                 className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
                 autoFocus
               />
@@ -58,7 +58,7 @@ export default function EmailGate({ children }: Props) {
               type="submit"
               className="w-full bg-red-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-red-700 transition"
             >
-              Continue
+              Tiếp tục
             </button>
           </form>
         </div>

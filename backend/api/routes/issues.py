@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,7 +12,7 @@ from models.vote import Vote, VoteType
 from models.jira_link import JiraLink
 from models.base import gen_uuid
 from schemas.issue import IssuePublic, IssueInternal, IssueCreate, IssueUpdate, VoteRequest, JiraLinkRequest
-from services import jira_service, kb_service
+from services import jira_service, kb_service, ai_service, scoring_service
 
 router = APIRouter(prefix="/issues", tags=["issues"])
 
@@ -49,6 +51,7 @@ async def create_issue(
         title=body.title,
         description=body.description,
         type=body.type,
+        team=body.team,
         source=IssueSource.portal,
         submitted_by_email=body.submitted_by_email,
         media_urls=body.media_urls,
@@ -57,6 +60,19 @@ async def create_issue(
     )
     db.add(issue)
     await db.flush()
+
+    # Auto AI CSAT on creation
+    try:
+        kb_entries = await kb_service.get_relevant_entries(db, body.description, limit=5)
+        classification = await ai_service.classify_with_context(body.description, None, [], kb_entries)
+        csat = classification.get("csat_score")
+        if csat is not None:
+            issue.csat_score = float(csat)
+            await scoring_service.recalculate_issue(db, issue)
+    except Exception:
+        pass  # CSAT failure should not block issue creation
+
+    await db.commit()
     return {"id": issue.id, "status": issue.status}
 
 
@@ -99,7 +115,7 @@ async def update_issue(
 @router.post("/{issue_id}/approve")
 async def approve_issue(
     issue_id: str,
-    x_user_email: str | None = None,
+    x_user_email: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
     _: str = Depends(require_pm_qc),
 ):

@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Optional
 import re
 import httpx
 from sqlalchemy import select, text
@@ -6,12 +8,12 @@ from models.knowledge_base import KBEntry, KBSourceType
 from models.base import gen_uuid
 
 
-def _extract_gdoc_id(url: str) -> str | None:
+def _extract_gdoc_id(url: str) -> Optional[str]:
     m = re.search(r"/d/([a-zA-Z0-9_-]+)", url)
     return m.group(1) if m else None
 
 
-async def import_from_gdoc(db: AsyncSession, url: str, imported_by: str | None = None) -> list[KBEntry]:
+async def import_from_gdoc(db: AsyncSession, url: str, imported_by: Optional[str] = None) -> list[KBEntry]:
     """One-time import from a public Google Doc. Skips if already imported."""
     existing = await db.scalar(select(KBEntry).where(KBEntry.source_ref == url, KBEntry.is_active == True))
     if existing:
@@ -80,8 +82,8 @@ async def get_relevant_entries(db: AsyncSession, query: str, limit: int = 5) -> 
     sql = text("""
         SELECT * FROM kb_entries
         WHERE is_active = true
-          AND to_tsvector('english', content) @@ plainto_tsquery('english', :query)
-        ORDER BY ts_rank(to_tsvector('english', content), plainto_tsquery('english', :query)) DESC
+          AND to_tsvector('simple', coalesce(title,'') || ' ' || content) @@ plainto_tsquery('simple', :query)
+        ORDER BY ts_rank(to_tsvector('simple', coalesce(title,'') || ' ' || content), plainto_tsquery('simple', :query)) DESC
         LIMIT :limit
     """)
     result = await db.execute(sql, {"query": query, "limit": limit})
@@ -98,7 +100,7 @@ async def get_relevant_entries(db: AsyncSession, query: str, limit: int = 5) -> 
     return list(result3.scalars().all())
 
 
-async def append_from_jira(db: AsyncSession, ticket_data: dict, imported_by: str | None = None) -> KBEntry:
+async def append_from_jira(db: AsyncSession, ticket_data: dict, imported_by: Optional[str] = None) -> KBEntry:
     """Create a KB entry from a fetched Jira ticket."""
     content = f"Summary: {ticket_data['summary']}\n\nDescription: {ticket_data['description']}"
     entry = KBEntry(

@@ -6,13 +6,13 @@ import NavBar from "@/components/NavBar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "QC CS AI — GHN Feedback Portal",
-  description: "Report bugs and request features for GHN CS AI",
+  title: "QC CS AI — Cổng Phản Hồi GHN",
+  description: "Báo lỗi và yêu cầu tính năng cho GHN CS AI",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="vi">
       <body className={inter.className}>
         <NavBar />
         <main className="max-w-5xl mx-auto px-4 py-6">{children}</main>

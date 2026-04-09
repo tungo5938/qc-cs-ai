@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Optional
 import re
 import base64
 import httpx
@@ -6,7 +8,7 @@ from core.config import get_settings
 JIRA_KEY_RE = re.compile(r"([A-Z][A-Z0-9]+-\d+)")
 
 
-def extract_ticket_key(jira_url: str) -> str | None:
+def extract_ticket_key(jira_url: str) -> Optional[str]:
     m = JIRA_KEY_RE.search(jira_url)
     return m.group(1) if m else None
 
@@ -17,7 +19,7 @@ def _auth_header() -> dict:
     return {"Authorization": f"Basic {token}", "Content-Type": "application/json"}
 
 
-async def fetch_ticket(ticket_key: str) -> dict | None:
+async def fetch_ticket(ticket_key: str) -> Optional[dict]:
     """Fetch Jira ticket fields. Returns None if not found."""
     s = get_settings()
     if not s.jira_domain or not s.jira_email or not s.jira_api_token:
