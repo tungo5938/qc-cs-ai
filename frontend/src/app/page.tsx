@@ -39,19 +39,14 @@ function MetricCard({
   );
 }
 
-function ProgressBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.min(Math.max(value, 0), 100);
-  const color =
-    pct >= 80 ? "bg-green-500" : pct >= 60 ? "bg-yellow-500" : "bg-red-500";
+function KpiCard({ label, value, unit, source }: { label: string; value: number | null; unit: string; source: string }) {
+  const isPlaceholder = source === "placeholder" || value === null;
   return (
-    <div>
-      <div className="flex justify-between text-sm mb-1">
-        <span className="text-gray-700">{label}</span>
-        <span className="font-medium text-gray-900">{pct.toFixed(1)}%</span>
-      </div>
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-        <div className={`h-2 ${color} rounded-full transition-all`} style={{ width: `${pct}%` }} />
-      </div>
+    <div className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+      <span className="text-sm text-gray-600">{label}</span>
+      <span className={`text-sm font-semibold ${isPlaceholder ? "text-gray-300" : "text-gray-900"}`}>
+        {isPlaceholder ? "—" : `${value?.toLocaleString("vi-VN")} ${unit}`}
+      </span>
     </div>
   );
 }
@@ -97,7 +92,7 @@ export default function DashboardPage() {
     );
 
   const d = data!;
-  const kpis = d.kpis ?? { cs_ai_automation: 0, cs_chat_uptime: 0, voice_ai_accuracy: 0 };
+  const kpis = d.metabase_kpis;
 
   return (
     <div className="space-y-8">
@@ -238,11 +233,22 @@ export default function DashboardPage() {
 
         {/* KPIs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
-          <h2 className="font-semibold text-gray-900 mb-4">Metabase KPIs</h2>
-          <div className="space-y-4">
-            <ProgressBar label="CS AI — Tỷ lệ tự động hoá" value={kpis.cs_ai_automation} />
-            <ProgressBar label="CS Chat — Uptime" value={kpis.cs_chat_uptime} />
-            <ProgressBar label="Voice AI — Độ chính xác" value={kpis.voice_ai_accuracy} />
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-semibold text-gray-900">Metabase KPIs</h2>
+            {kpis?.source === "metabase" && (
+              <span className="text-xs text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Live</span>
+            )}
+          </div>
+          <div className="divide-y divide-gray-50">
+            {kpis && (
+              <>
+                <KpiCard {...kpis.cs_ai} />
+                <KpiCard {...kpis.cs_chat_clients} />
+                <KpiCard {...kpis.cs_chat_messages} />
+                <KpiCard {...kpis.cs_chat_tickets} />
+                <KpiCard {...kpis.voice_ai} />
+              </>
+            )}
           </div>
         </div>
       </div>

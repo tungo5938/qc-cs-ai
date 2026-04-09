@@ -113,14 +113,14 @@ async def get_dashboard(
     return {
         "date": today.isoformat(),
         "product_filter": product_id,
-        "metric_cards": {
-            "feedback_pending": feedback_pending,
-            "actions_overdue": actions_overdue,
-            "solutions_pending": solutions_pending,
-            "meetings_today": meetings_today_count,
-        },
-        "overdue_actions": overdue_actions,
-        "new_feedbacks": new_feedbacks,
-        "meetings_today": meetings_today_list,
+        # flat metric cards (matches DashboardData frontend type)
+        "pending_feedbacks": feedback_pending,
+        "overdue_actions": actions_overdue,
+        "pending_solutions": solutions_pending,
+        "meetings_today": meetings_today_count,
+        # widget lists
+        "overdue_action_items": overdue_actions,
+        "recent_feedbacks": new_feedbacks,
+        "todays_meetings": meetings_today_list,
         "metabase_kpis": metabase_kpis,
     }

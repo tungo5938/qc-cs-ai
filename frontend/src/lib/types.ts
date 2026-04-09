@@ -170,6 +170,13 @@ export interface ActionItem {
   updated_at?: string;
 }
 
+export interface MetabaseKpi {
+  label: string;
+  value: number | null;
+  unit: string;
+  source: "metabase" | "placeholder";
+}
+
 export interface DashboardData {
   pending_feedbacks: number;
   overdue_actions: number;
@@ -178,9 +185,12 @@ export interface DashboardData {
   overdue_action_items: ActionItem[];
   recent_feedbacks: Feedback[];
   todays_meetings: Meeting[];
-  kpis: {
-    cs_ai_automation: number;
-    cs_chat_uptime: number;
-    voice_ai_accuracy: number;
+  metabase_kpis: {
+    cs_ai: MetabaseKpi;
+    cs_chat_clients: MetabaseKpi;
+    cs_chat_messages: MetabaseKpi;
+    cs_chat_tickets: MetabaseKpi;
+    voice_ai: MetabaseKpi;
+    source: string;
   };
 }
