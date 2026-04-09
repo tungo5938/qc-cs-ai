@@ -1,7 +1,5 @@
 "use client";
 import { useEffect, useState } from "react";
-import NavBar from "@/components/NavBar";
-import EmailGate from "@/components/EmailGate";
 import { api } from "@/lib/api";
 import type { Product } from "@/lib/types";
 
@@ -152,9 +150,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <EmailGate>
-      <NavBar />
-      <main className="max-w-3xl mx-auto px-4 py-8">
+    <div className="max-w-3xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Cài đặt sản phẩm</h1>
@@ -272,8 +268,7 @@ export default function SettingsPage() {
             )}
           </div>
         )}
-      </main>
-    </EmailGate>
+    </div>
   );
 }
 

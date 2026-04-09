@@ -1,17 +1,10 @@
 const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-function getEmail(): string | null {
-  if (typeof window === "undefined") return null;
-  return sessionStorage.getItem("qc_user_email");
-}
-
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const email = getEmail();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string>),
   };
-  if (email) headers["X-User-Email"] = email;
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers });
   if (!res.ok) {
@@ -22,6 +15,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  // ── Legacy ──────────────────────────────────────────────────────────────────
   issues: {
     list: () => request<any[]>("/api/issues"),
     get: (id: string) => request<any>(`/api/issues/${id}`),
@@ -60,5 +54,69 @@ export const api = {
     create: (data: any) => request<any>("/api/products", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: any) => request<any>(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) => request<any>(`/api/products/${id}`, { method: "DELETE" }),
+  },
+
+  // ── PM Tool ─────────────────────────────────────────────────────────────────
+  feedbacks: {
+    list: (params?: { product_id?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.product_id) qs.set("product_id", params.product_id);
+      if (params?.status) qs.set("status", params.status);
+      const query = qs.toString() ? `?${qs}` : "";
+      return request<any[]>(`/api/feedbacks${query}`);
+    },
+    get: (id: string) => request<any>(`/api/feedbacks/${id}`),
+    create: (data: any) => request<any>("/api/feedbacks", { method: "POST", body: JSON.stringify(data) }),
+    analyze: (id: string) => request<any>(`/api/feedbacks/${id}/analyze`, { method: "POST" }),
+  },
+  solutions: {
+    list: (params?: { product_id?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.product_id) qs.set("product_id", params.product_id);
+      if (params?.status) qs.set("status", params.status);
+      const query = qs.toString() ? `?${qs}` : "";
+      return request<any[]>(`/api/solutions${query}`);
+    },
+    get: (id: string) => request<any>(`/api/solutions/${id}`),
+    update: (id: string, data: any) => request<any>(`/api/solutions/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    approve: (id: string) => request<any>(`/api/solutions/${id}/approve`, { method: "POST" }),
+    reject: (id: string, reason: string) =>
+      request<any>(`/api/solutions/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
+  },
+  meetings: {
+    list: (params?: { product_id?: string; status?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.product_id) qs.set("product_id", params.product_id);
+      if (params?.status) qs.set("status", params.status);
+      const query = qs.toString() ? `?${qs}` : "";
+      return request<any[]>(`/api/meetings${query}`);
+    },
+    get: (id: string) => request<any>(`/api/meetings/${id}`),
+    create: (data: any) => request<any>("/api/meetings", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request<any>(`/api/meetings/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+    addNote: (id: string, content: string) =>
+      request<any>(`/api/meetings/${id}/notes`, { method: "POST", body: JSON.stringify({ content }) }),
+    finish: (id: string) => request<any>(`/api/meetings/${id}/finish`, { method: "POST" }),
+  },
+  actionItems: {
+    list: (params?: { product_id?: string; status?: string; assignee?: string }) => {
+      const qs = new URLSearchParams();
+      if (params?.product_id) qs.set("product_id", params.product_id);
+      if (params?.status) qs.set("status", params.status);
+      if (params?.assignee) qs.set("assignee", params.assignee);
+      const query = qs.toString() ? `?${qs}` : "";
+      return request<any[]>(`/api/action-items${query}`);
+    },
+    create: (data: any) => request<any>("/api/action-items", { method: "POST", body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request<any>(`/api/action-items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+    bulk: (ids: string[], data: any) =>
+      request<any>("/api/action-items/bulk", { method: "POST", body: JSON.stringify({ ids, ...data }) }),
+    delete: (id: string) => request<any>(`/api/action-items/${id}`, { method: "DELETE" }),
+  },
+  dashboard: {
+    get: (product_id?: string) => {
+      const query = product_id ? `?product_id=${product_id}` : "";
+      return request<any>(`/api/dashboard${query}`);
+    },
   },
 };

@@ -6,8 +6,8 @@ import NavBar from "@/components/NavBar";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "QC CS AI — Cổng Phản Hồi GHN",
-  description: "Báo lỗi và yêu cầu tính năng cho GHN CS AI",
+  title: "PM Tool — GHN CS",
+  description: "Công cụ quản lý sản phẩm cho GHN CS AI, CS Chat, Voice AI",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

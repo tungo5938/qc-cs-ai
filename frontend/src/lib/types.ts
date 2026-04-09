@@ -1,3 +1,5 @@
+// ── Legacy types (kept for reference) ─────────────────────────────────────────
+
 export type IssueType = "bug" | "feature_request" | "unclear";
 export type IssueStatus = "pending_review" | "approved" | "rejected" | "in_progress" | "done";
 export type IssuePriority = "low" | "medium" | "high" | "critical";
@@ -24,7 +26,6 @@ export interface Issue {
   team: TeamType;
   is_public: boolean;
   jira_link: JiraLink | null;
-  // Scoring
   user_rating: number | null;
   po_rating: number | null;
   tech_effort: number | null;
@@ -32,7 +33,6 @@ export interface Issue {
   composite_score: number | null;
   created_at: string;
   updated_at: string;
-  // Internal fields (pm_qc only)
   root_cause?: string;
   submitted_by_email?: string;
   approved_by_email?: string;
@@ -73,4 +73,114 @@ export interface Product {
   jira_project_key: string | null;
   color: string | null;
   created_at: string;
+}
+
+// ── PM Tool types ──────────────────────────────────────────────────────────────
+
+export type FeedbackStatus =
+  | "new"
+  | "analyzing"
+  | "analyzed"
+  | "solution_drafted";
+
+export type FeedbackSource = "telegram" | "manual";
+
+export type EffortSize = "S" | "M" | "L" | "XL";
+
+export type SolutionStatus = "draft" | "approved" | "rejected";
+
+export type MeetingStatus = "upcoming" | "in_progress" | "done";
+
+export type MeetingType = "weekly_review" | "sprint_planning" | "incident" | "stakeholder" | "other";
+
+export type ActionStatus = "todo" | "in_progress" | "done" | "cancelled";
+
+export type ImpactLevel = "low" | "medium" | "high";
+
+export interface FeedbackAnalysis {
+  root_cause: string;
+  impact_level: ImpactLevel;
+  affected_area: string;
+  kb_references: string[];
+}
+
+export interface Feedback {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  source: FeedbackSource;
+  status: FeedbackStatus;
+  raw_content: string;
+  analysis?: FeedbackAnalysis | null;
+  solution_id?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface SolutionDraft {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  feedback_id?: string | null;
+  status: SolutionStatus;
+  problem_statement: string;
+  proposed_solution: string;
+  success_metrics: string;
+  open_questions: string;
+  effort: EffortSize;
+  gdoc_url?: string | null;
+  rejection_reason?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface MeetingNote {
+  id: string;
+  meeting_id: string;
+  content: string;
+  created_at: string;
+}
+
+export interface Meeting {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  name: string;
+  meeting_type: MeetingType;
+  status: MeetingStatus;
+  scheduled_at: string;
+  participants: string[];
+  notes?: MeetingNote[];
+  action_items?: ActionItem[];
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface ActionItem {
+  id: string;
+  product_id: string;
+  product_name?: string;
+  meeting_id?: string | null;
+  meeting_name?: string | null;
+  title: string;
+  assignee: string;
+  status: ActionStatus;
+  deadline?: string | null;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface DashboardData {
+  pending_feedbacks: number;
+  overdue_actions: number;
+  pending_solutions: number;
+  meetings_today: number;
+  overdue_action_items: ActionItem[];
+  recent_feedbacks: Feedback[];
+  todays_meetings: Meeting[];
+  kpis: {
+    cs_ai_automation: number;
+    cs_chat_uptime: number;
+    voice_ai_accuracy: number;
+  };
 }
