@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # Access control
     pm_qc_emails: str = ""  # Comma-separated
 
+    # Metabase
+    metabase_api_token: str = ""
+    metabase_base_url: str = ""
+
     # App
     backend_base_url: str = ""
     frontend_url: str = "http://localhost:3000"
