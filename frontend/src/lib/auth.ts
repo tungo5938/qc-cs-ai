@@ -1,45 +1,31 @@
 import type { NextAuthOptions } from "next-auth";
-import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 
 const GHN_DOMAIN_RE = /^[^@]+@(ghn\.vn|ghn\.com\.vn)$/i;
 
 export const authOptions: NextAuthOptions = {
   providers: [
-    CredentialsProvider({
-      name: "Email",
-      credentials: {
-        email: { label: "Email GHN", type: "email", placeholder: "ten@ghn.vn" },
-        password: { label: "Mật khẩu", type: "password" },
-      },
-      async authorize(credentials) {
-        const email = (credentials?.email || "").toLowerCase().trim();
-        const password = credentials?.password || "";
-        const secret = process.env.ACCESS_PASSWORD;
-
-        if (!secret || password !== secret) return null;
-
-        // GHN domain always allowed
-        if (GHN_DOMAIN_RE.test(email)) {
-          return { id: email, email, name: email.split("@")[0] };
-        }
-
-        // Check additional allowed emails in backend
-        try {
-          const api = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-          const res = await fetch(
-            `${api}/api/auth/allowed-emails/check?email=${encodeURIComponent(email)}`
-          );
-          if (res.ok) {
-            const data = await res.json();
-            if (data.allowed) return { id: email, email, name: email.split("@")[0] };
-          }
-        } catch {}
-
-        return null;
-      },
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
   callbacks: {
+    async signIn({ user }) {
+      const email = user.email || "";
+      if (GHN_DOMAIN_RE.test(email)) return true;
+      try {
+        const api = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+        const res = await fetch(
+          `${api}/api/auth/allowed-emails/check?email=${encodeURIComponent(email)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          return data.allowed === true;
+        }
+      } catch {}
+      return "/login?error=AccessDenied";
+    },
     async jwt({ token, user }) {
       if (user) token.email = user.email;
       return token;
