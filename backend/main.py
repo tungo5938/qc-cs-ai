@@ -1,14 +1,33 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from core.config import get_settings
-from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, upload, scoring, products, feedbacks, solutions, meetings, action_items, dashboard
+from core.database import engine
+from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, upload, scoring, products, feedbacks, solutions, meetings, action_items, dashboard, auth_settings
+
+
+async def _ensure_feedback_rating_columns() -> None:
+    """
+    Safety net for production rollouts where app code is deployed
+    before Alembic migration 0006 is applied.
+    """
+    if engine.dialect.name != "postgresql":
+        return
+    async with engine.begin() as conn:
+        await conn.execute(
+            text("ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS tu_danh_gia INTEGER")
+        )
+        await conn.execute(
+            text("ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS priority_score DOUBLE PRECISION")
+        )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    await _ensure_feedback_rating_columns()
     # Initialize and register Telegram bot
     if settings.telegram_bot_token:
         from services.telegram_service import get_application
@@ -51,6 +70,7 @@ app.include_router(solutions.router, prefix="/api")
 app.include_router(meetings.router, prefix="/api")
 app.include_router(action_items.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
+app.include_router(auth_settings.router, prefix="/api")
 
 
 @app.get("/health")

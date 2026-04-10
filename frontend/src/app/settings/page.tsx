@@ -1,7 +1,278 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { api } from "@/lib/api";
 import type { Product } from "@/lib/types";
+
+// ── Access Control section (admin only) ───────────────────────────────────────
+
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const PM_EMAILS = (process.env.NEXT_PUBLIC_PM_QC_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
+
+type AllowedEntry = { id: string; email: string; added_by: string; created_at: string };
+
+function AccessControl({ adminEmail }: { adminEmail: string }) {
+  const [entries, setEntries] = useState<AllowedEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [newEmail, setNewEmail] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE}/api/auth/allowed-emails`, {
+        headers: { "x-admin-email": adminEmail },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setEntries(await res.json());
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function addEmail() {
+    if (!newEmail.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE}/api/auth/allowed-emails`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-email": adminEmail },
+        body: JSON.stringify({ email: newEmail.trim() }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setNewEmail("");
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeEmail(id: string) {
+    if (!confirm("Xóa email này khỏi danh sách?")) return;
+    try {
+      const res = await fetch(`${BASE}/api/auth/allowed-emails/${id}`, {
+        method: "DELETE",
+        headers: { "x-admin-email": adminEmail },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setEntries((prev) => prev.filter((e) => e.id !== id));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-xl bg-white mb-8">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h2 className="font-semibold text-gray-900">Quản lý quyền truy cập</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Tài khoản <span className="font-mono">@ghn.vn</span> luôn được phép đăng nhập.
+          Thêm email ngoài domain vào đây nếu cần.
+        </p>
+      </div>
+      <div className="p-5">
+        {error && (
+          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+        )}
+        {/* Add form */}
+        <div className="flex gap-2 mb-4">
+          <input
+            type="email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addEmail()}
+            placeholder="email@example.com"
+            className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+          />
+          <button
+            onClick={addEmail}
+            disabled={saving || !newEmail.trim()}
+            className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+          >
+            {saving ? "..." : "+ Thêm"}
+          </button>
+        </div>
+        {/* List */}
+        {loading ? (
+          <p className="text-sm text-gray-400 py-4 text-center">Đang tải...</p>
+        ) : entries.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center italic">Chưa có email nào được thêm thủ công.</p>
+        ) : (
+          <div className="space-y-2">
+            {entries.map((e) => (
+              <div key={e.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{e.email}</p>
+                  <p className="text-xs text-gray-400">
+                    Thêm bởi {e.added_by} · {new Date(e.created_at).toLocaleDateString("vi-VN")}
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeEmail(e.id)}
+                  className="text-sm text-red-500 hover:text-red-700 px-3 py-1.5 rounded-lg border border-red-100 hover:border-red-200 transition"
+                >
+                  Xóa
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── KbTable component ──────────────────────────────────────────────────────────
+
+type KbEntry = { title: string; content: string };
+
+function parseKbEntries(kb_text: string): KbEntry[] {
+  if (!kb_text) return [];
+  try {
+    const parsed = JSON.parse(kb_text);
+    if (Array.isArray(parsed)) return parsed;
+  } catch {}
+  // Parse ### title\ncontent format
+  const blocks = kb_text.split(/\n(?=### )/);
+  return blocks.map(b => {
+    const lines = b.trim().split('\n');
+    const title = lines[0].replace(/^### /, '').trim();
+    const content = lines.slice(1).join('\n').trim();
+    return { title, content };
+  }).filter(e => e.title || e.content);
+}
+
+function KbTable({ kb_text, onChange }: { kb_text: string; onChange: (val: string) => void }) {
+  const [entries, setEntries] = useState<KbEntry[]>(() => parseKbEntries(kb_text));
+  const [editIdx, setEditIdx] = useState<number | null>(null);
+  const [editEntry, setEditEntry] = useState<KbEntry>({ title: '', content: '' });
+  const [adding, setAdding] = useState(false);
+  const [newEntry, setNewEntry] = useState<KbEntry>({ title: '', content: '' });
+
+  useEffect(() => {
+    setEntries(parseKbEntries(kb_text));
+  }, [kb_text]);
+
+  function save(updated: KbEntry[]) {
+    setEntries(updated);
+    onChange(JSON.stringify(updated, null, 0));
+  }
+
+  function deleteEntry(i: number) {
+    save(entries.filter((_, idx) => idx !== i));
+  }
+
+  function startEdit(i: number) {
+    setEditIdx(i);
+    setEditEntry({ ...entries[i] });
+  }
+
+  function commitEdit() {
+    if (editIdx === null) return;
+    const updated = [...entries];
+    updated[editIdx] = editEntry;
+    save(updated);
+    setEditIdx(null);
+  }
+
+  function addEntry() {
+    if (!newEntry.content.trim()) return;
+    save([...entries, { ...newEntry }]);
+    setNewEntry({ title: '', content: '' });
+    setAdding(false);
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium text-gray-700">Knowledge Base ({entries.length} mục)</span>
+        <button
+          type="button"
+          onClick={() => setAdding(true)}
+          className="text-xs text-red-600 hover:text-red-700 border border-red-200 px-2 py-1 rounded"
+        >
+          + Thêm mục
+        </button>
+      </div>
+
+      {entries.length === 0 && !adding && (
+        <p className="text-xs text-gray-400 italic py-4 text-center border border-dashed border-gray-200 rounded-lg">
+          Chưa có mục KB. Upload file hoặc thêm thủ công.
+        </p>
+      )}
+
+      <div className="space-y-1 max-h-64 overflow-y-auto">
+        {entries.map((e, i) => (
+          <div key={i} className="border border-gray-100 rounded-lg overflow-hidden">
+            {editIdx === i ? (
+              <div className="p-2 space-y-1">
+                <input
+                  type="text"
+                  value={editEntry.title}
+                  onChange={ev => setEditEntry(p => ({ ...p, title: ev.target.value }))}
+                  placeholder="Tiêu đề"
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+                />
+                <textarea
+                  value={editEntry.content}
+                  onChange={ev => setEditEntry(p => ({ ...p, content: ev.target.value }))}
+                  rows={3}
+                  className="w-full text-xs border border-gray-200 rounded px-2 py-1 resize-none"
+                />
+                <div className="flex gap-2 justify-end">
+                  <button type="button" onClick={() => setEditIdx(null)} className="text-xs text-gray-500">Hủy</button>
+                  <button type="button" onClick={commitEdit} className="text-xs text-red-600 font-medium">Lưu</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 p-2">
+                <div className="flex-1 min-w-0">
+                  {e.title && <p className="text-xs font-medium text-gray-700 truncate">{e.title}</p>}
+                  <p className="text-xs text-gray-500 line-clamp-2">{e.content}</p>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button type="button" onClick={() => startEdit(i)} className="text-xs text-gray-400 hover:text-gray-600">✏️</button>
+                  <button type="button" onClick={() => deleteEntry(i)} className="text-xs text-gray-400 hover:text-red-500">🗑</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {adding && (
+        <div className="border border-red-100 rounded-lg p-2 space-y-1 mt-1">
+          <input
+            type="text"
+            value={newEntry.title}
+            onChange={e => setNewEntry(p => ({ ...p, title: e.target.value }))}
+            placeholder="Tiêu đề"
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1"
+          />
+          <textarea
+            value={newEntry.content}
+            onChange={e => setNewEntry(p => ({ ...p, content: e.target.value }))}
+            rows={3}
+            placeholder="Nội dung"
+            className="w-full text-xs border border-gray-200 rounded px-2 py-1 resize-none"
+          />
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={() => setAdding(false)} className="text-xs text-gray-500">Hủy</button>
+            <button type="button" onClick={addEntry} className="text-xs text-red-600 font-medium">Thêm</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const DEFAULT_PRODUCTS = [
   { name: "CS AI", color: "#EF4444" },
@@ -54,6 +325,10 @@ function productToForm(p: Product): ProductFormData {
 }
 
 export default function SettingsPage() {
+  const { data: session } = useSession();
+  const userEmail = session?.user?.email?.toLowerCase() || "";
+  const isAdmin = PM_EMAILS.includes(userEmail);
+
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -196,6 +471,8 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-3xl mx-auto">
+        {isAdmin && <AccessControl adminEmail={userEmail} />}
+
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Cài đặt sản phẩm</h1>
@@ -398,8 +675,8 @@ function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel, onKb
       </div>
       <div>
         <div className="flex items-center justify-between mb-1">
-          <label className="block text-xs font-medium text-gray-700">Knowledge Base (text)</label>
-          <label className={`text-xs cursor-pointer px-2 py-1 rounded border transition ${uploading ? 'opacity-50 cursor-not-allowed border-gray-200 text-gray-400' : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800'}`}>
+          <label className="block text-xs font-medium text-gray-700">Knowledge Base</label>
+          <label className={`text-xs cursor-pointer px-2 py-1 rounded border transition ${(uploading || !onKbUpload) ? 'opacity-50 cursor-not-allowed border-gray-200 text-gray-400' : 'border-gray-300 text-gray-600 hover:border-gray-400'}`}>
             {uploading ? "Đang upload..." : "📎 Upload .docx/.xlsx/.txt"}
             <input
               type="file"
@@ -409,23 +686,15 @@ function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel, onKb
               onChange={e => {
                 const file = e.target.files?.[0];
                 if (file && onKbUpload) onKbUpload(file);
-                e.target.value = ""; // reset so same file can be re-uploaded
+                e.target.value = "";
               }}
             />
           </label>
         </div>
-        <textarea
-          value={form.kb_text}
-          onChange={e => set("kb_text", e.target.value)}
-          placeholder="Nhập nội dung KB hoặc upload file .docx/.xlsx/.txt..."
-          rows={6}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-y"
+        <KbTable
+          kb_text={form.kb_text}
+          onChange={val => set("kb_text", val)}
         />
-        {form.kb_text && (
-          <p className="text-xs text-gray-400 mt-1 text-right">
-            {form.kb_text.length.toLocaleString()} ký tự
-          </p>
-        )}
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-1">Jira Project Key</label>

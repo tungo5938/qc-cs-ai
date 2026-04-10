@@ -12,6 +12,7 @@ from models.solution_draft import SolutionDraft
 from models.meeting import Meeting
 from models.meeting_note import MeetingNote
 from models.action_item import ActionItem
+from models.allowed_email import AllowedEmail
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -28,4 +29,5 @@ __all__ = [
     "Meeting",
     "MeetingNote",
     "ActionItem",
+    "AllowedEmail",
 ]
