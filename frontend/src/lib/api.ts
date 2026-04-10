@@ -1,4 +1,7 @@
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+// All API calls go through the Next.js /proxy rewrite.
+// In dev: /proxy/* → http://localhost:8000/* (via next.config.ts rewrite)
+// In prod: /proxy/* → http://backend.railway.internal:8080/* (internal network)
+const BASE = "/proxy";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const headers: Record<string, string> = {

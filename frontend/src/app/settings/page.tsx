@@ -6,7 +6,7 @@ import type { Product } from "@/lib/types";
 
 // ── Access Control section (admin only) ───────────────────────────────────────
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const BASE = "/proxy";
 const PM_EMAILS = (process.env.NEXT_PUBLIC_PM_QC_EMAILS || "").split(",").map((e) => e.trim().toLowerCase());
 
 type AllowedEntry = { id: string; email: string; added_by: string; created_at: string };
