@@ -28,7 +28,7 @@ async def fetch_kpis() -> dict:
     headers = {"X-Metabase-Session": s.metabase_api_token, "Content-Type": "application/json"}
 
     try:
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 f"{base_url}/api/card/{CS_CHAT_CARD_ID}/query",
                 headers=headers,
