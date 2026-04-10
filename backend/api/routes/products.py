@@ -26,6 +26,9 @@ async def create_product(body: ProductCreate, db: AsyncSession = Depends(get_db)
         kb_gdoc_url=body.kb_gdoc_url,
         jira_project_key=body.jira_project_key,
         color=body.color,
+        product_goal=body.product_goal,
+        kb_text=body.kb_text,
+        google_sheet_url=body.google_sheet_url,
     )
     db.add(product)
     await db.commit()

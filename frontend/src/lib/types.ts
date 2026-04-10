@@ -73,6 +73,9 @@ export interface Product {
   jira_project_key: string | null;
   color: string | null;
   created_at: string;
+  product_goal?: string | null;
+  kb_text?: string | null;
+  google_sheet_url?: string | null;
 }
 
 // ── PM Tool types ──────────────────────────────────────────────────────────────

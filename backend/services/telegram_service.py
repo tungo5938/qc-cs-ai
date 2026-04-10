@@ -193,19 +193,34 @@ async def _handle_product_feedback(msg: Message, bot: Bot, product: Product):
     """
     text_content = msg.caption or msg.text or ""
     media_urls = []
+    image_bytes: Optional[bytes] = None
+    mime_type = "image/jpeg"
 
     if msg.photo:
         largest = max(msg.photo, key=lambda p: p.file_size or 0)
         tg_file = await bot.get_file(largest.file_id)
         media_urls.append(tg_file.file_path)
+        try:
+            image_bytes, mime_type = await _download_file(bot, largest.file_id)
+        except Exception as e:
+            print(f"[TelegramBot] Failed to download image: {e}")
     elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("image/"):
         tg_file = await bot.get_file(msg.document.file_id)
         media_urls.append(tg_file.file_path)
+        try:
+            image_bytes, mime_type = await _download_file(bot, msg.document.file_id)
+        except Exception as e:
+            print(f"[TelegramBot] Failed to download image: {e}")
     elif msg.video:
         tg_file = await bot.get_file(msg.video.file_id)
         media_urls.append(tg_file.file_path)
 
     async with AsyncSessionLocal() as db:
+        # Reload product to get kb_text, product_goal
+        product_db = await db.get(Product, product.id)
+        product_goal = product_db.product_goal or "" if product_db else ""
+        kb_text = product_db.kb_text or "" if product_db else ""
+
         feedback = Feedback(
             id=gen_uuid(),
             product_id=product.id,
@@ -220,7 +235,7 @@ async def _handle_product_feedback(msg: Message, bot: Bot, product: Product):
         db.add(feedback)
         await db.flush()
 
-        # Post acknowledgement to group before analysis
+        # Ack
         try:
             await bot.send_message(
                 chat_id=msg.chat_id,
@@ -230,15 +245,81 @@ async def _handle_product_feedback(msg: Message, bot: Bot, product: Product):
         except Exception as e:
             print(f"[TelegramBot] Failed to send ack message: {e}")
 
-        # Run analysis pipeline
+        # Run analysis — use vision if image available
+        analysis = None
         try:
-            from api.routes.feedbacks import _run_analysis_pipeline
-            await _run_analysis_pipeline(db, feedback)
+            if image_bytes:
+                analysis_data = await ai_service.analyze_feedback_with_image(
+                    content=text_content or "(media only)",
+                    image_bytes=image_bytes,
+                    mime_type=mime_type,
+                    product_name=product.name,
+                    product_goal=product_goal,
+                    kb_text=kb_text,
+                )
+            else:
+                analysis_data = await ai_service.analyze_feedback(
+                    content=feedback.raw_content,
+                    product_name=product.name,
+                    product_goal=product_goal,
+                    kb_text=kb_text,
+                )
+
+            # Create FeedbackAnalysis record
+            from models.feedback_analysis import FeedbackAnalysis
+            from models.base import gen_uuid as _gen_uuid
+            fb_analysis = FeedbackAnalysis(
+                id=_gen_uuid(),
+                feedback_id=feedback.id,
+                root_cause=analysis_data.get("root_cause"),
+                impact_level=analysis_data.get("impact_level"),
+                affected_area=analysis_data.get("affected_area"),
+                kb_references=analysis_data.get("kb_references", []),
+                ai_raw=analysis_data,
+            )
+            db.add(fb_analysis)
+            feedback.status = "analyzed"
+            await db.flush()
+            analysis = fb_analysis
         except Exception as e:
             print(f"[TelegramBot] Analysis pipeline failed: {e}")
 
         await db.commit()
         print(f"[TelegramBot] Created feedback {feedback.id} for product {product.name}")
+
+        # Send analysis result back to the group
+        try:
+            impact_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(
+                analysis.impact_level if analysis else "", "⚪"
+            )
+            area_label = {
+                "ui": "Giao diện", "logic": "Logic", "performance": "Hiệu năng",
+                "integration": "Tích hợp", "other": "Khác",
+            }.get(analysis.affected_area if analysis else "", "Chưa rõ")
+
+            if analysis and analysis.root_cause:
+                reply = (
+                    f"📋 *Kết quả phân tích* \\({_escape_md(product.name)}\\)\n\n"
+                    f"🔍 *Nguyên nhân:* {_escape_md(analysis.root_cause[:300])}\n"
+                    f"{impact_emoji} *Mức độ ảnh hưởng:* {_escape_md(analysis.impact_level or 'Chưa rõ')}\n"
+                    f"🏷 *Khu vực:* {_escape_md(area_label)}\n\n"
+                    f"🆔 Feedback ID: `{feedback.id[:8]}`"
+                )
+            else:
+                reply = (
+                    f"📋 *Đã lưu feedback* \\({_escape_md(product.name)}\\)\n"
+                    f"🆔 Feedback ID: `{feedback.id[:8]}`\n"
+                    f"_Phân tích đang xử lý\\.\\.\\._"
+                )
+
+            await bot.send_message(
+                chat_id=msg.chat_id,
+                text=reply,
+                reply_to_message_id=msg.message_id,
+                parse_mode="MarkdownV2",
+            )
+        except Exception as e:
+            print(f"[TelegramBot] Failed to send analysis reply: {e}")
 
 
 async def _handle_new_feedback(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -252,11 +333,12 @@ async def _handle_new_feedback(update: Update, context: ContextTypes.DEFAULT_TYP
     print(f"[TelegramBot] Message from chat_id={msg.chat_id}, monitored={settings.monitored_group_ids}, has_photo={bool(msg.photo)}")
 
     # Check if this group is mapped to a Product in the products table
+    # Use .first() — multiple products may share same group ID during dev
     async with AsyncSessionLocal() as db:
         product_result = await db.execute(
             select(Product).where(Product.telegram_group_id == str(msg.chat_id))
         )
-        product = product_result.scalar_one_or_none()
+        product = product_result.scalars().first()
 
     if product:
         text_content = msg.caption or msg.text or ""

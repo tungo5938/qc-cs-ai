@@ -12,6 +12,7 @@ from models.product import Product
 from models.base import gen_uuid
 from schemas.feedback import FeedbackOut, FeedbackCreate, FeedbackUpdate
 from services import ai_service
+from services import gsheet_service
 
 router = APIRouter(prefix="/feedbacks", tags=["feedbacks"])
 
@@ -32,16 +33,22 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
 
     # Resolve product name for context
     product_name = ""
+    product_goal = ""
+    kb_text = ""
     if feedback.product_id:
         product = await db.get(Product, feedback.product_id)
         if product:
             product_name = product.name
+            product_goal = product.product_goal or ""
+            kb_text = product.kb_text or ""
 
     # Step 2: AI analysis
     try:
         analysis_data = await ai_service.analyze_feedback(
             content=feedback.raw_content,
             product_name=product_name,
+            product_goal=product_goal,
+            kb_text=kb_text,
         )
     except Exception as e:
         print(f"[FeedbackPipeline] analyze_feedback failed: {e}")
@@ -199,3 +206,68 @@ async def analyze_feedback(
     )
     feedback = result.scalar_one_or_none()
     return FeedbackOut.model_validate(feedback).model_dump()
+
+
+@router.post("/sync-sheet")
+async def sync_sheet(
+    product_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Sync feedback from the product's Google Sheet.
+    Deduplicates by gsheet_row_index.
+    Auto-generates AI rating (tu_danh_gia) as 1-10 based on impact_level.
+    Returns counts: imported, skipped.
+    """
+    product = await db.get(Product, product_id)
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    sheet_url = product.google_sheet_url
+    if not sheet_url:
+        raise HTTPException(400, "Product has no google_sheet_url configured")
+
+    # Fetch sheet rows
+    try:
+        rows = await gsheet_service.fetch_sheet_rows(sheet_url)
+    except Exception as e:
+        raise HTTPException(502, f"Failed to fetch sheet: {e}")
+
+    # Get already-imported row indices for this product
+    from sqlalchemy import and_
+    existing_result = await db.execute(
+        select(Feedback.gsheet_row_index).where(
+            and_(
+                Feedback.product_id == product_id,
+                Feedback.gsheet_row_index.isnot(None),
+            )
+        )
+    )
+    existing_indices = {r[0] for r in existing_result.fetchall()}
+
+    imported = 0
+    skipped = 0
+
+    for row in rows:
+        if row["row_index"] in existing_indices:
+            skipped += 1
+            continue
+
+        feedback = Feedback(
+            id=gen_uuid(),
+            product_id=product_id,
+            raw_content=row["content"],
+            submitted_by="gsheet",
+            source="gsheet",
+            status="new",
+            gsheet_row_index=row["row_index"],
+            user_priority=row["user_priority"],
+            tech_rating=row["tech_rating"],
+        )
+        db.add(feedback)
+        await db.flush()
+        imported += 1
+
+    await db.commit()
+
+    return {"imported": imported, "skipped": skipped, "total_rows": len(rows)}

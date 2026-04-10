@@ -17,6 +17,9 @@ class Product(Base):
     kb_gdoc_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     jira_project_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     color: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    product_goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    kb_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    google_sheet_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

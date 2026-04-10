@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Text, ForeignKey, DateTime, func
+from sqlalchemy import String, Text, ForeignKey, DateTime, Integer, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.database import Base
@@ -23,6 +23,9 @@ class Feedback(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, default="new")  # 'new' | 'analyzing' | 'analyzed' | 'solution_drafted'
     telegram_message_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     telegram_group_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    gsheet_row_index: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    user_priority: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    tech_rating: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

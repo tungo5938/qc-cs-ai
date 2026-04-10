@@ -10,6 +10,9 @@ class ProductOut(BaseModel):
     kb_gdoc_url: Optional[str] = None
     jira_project_key: Optional[str] = None
     color: Optional[str] = None
+    product_goal: Optional[str] = None
+    kb_text: Optional[str] = None
+    google_sheet_url: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -22,6 +25,9 @@ class ProductCreate(BaseModel):
     kb_gdoc_url: Optional[str] = None
     jira_project_key: Optional[str] = None
     color: Optional[str] = None
+    product_goal: Optional[str] = None
+    kb_text: Optional[str] = None
+    google_sheet_url: Optional[str] = None
 
 
 class ProductUpdate(BaseModel):
@@ -30,3 +36,6 @@ class ProductUpdate(BaseModel):
     kb_gdoc_url: Optional[str] = None
     jira_project_key: Optional[str] = None
     color: Optional[str] = None
+    product_goal: Optional[str] = None
+    kb_text: Optional[str] = None
+    google_sheet_url: Optional[str] = None

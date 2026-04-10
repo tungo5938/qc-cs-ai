@@ -172,12 +172,14 @@ async def generate_follow_up_question(classification: dict, round_num: int) -> s
 
 
 ANALYZE_FEEDBACK_SYSTEM = """Bạn là AI phân tích feedback sản phẩm cho PM của GHN.
-Phân tích feedback sau và trả về JSON với các trường:
-- root_cause: str (nguyên nhân gốc rễ, tiếng Việt)
-- impact_level: "low" | "medium" | "high"
+Phân tích feedback dựa trên mục tiêu sản phẩm và knowledge base được cung cấp.
+
+Trả về JSON với các trường:
+- root_cause: str (nguyên nhân gốc rễ, tiếng Việt, tối đa 300 ký tự)
+- impact_level: "low" | "medium" | "high" (dựa trên mức độ ảnh hưởng đến product goal)
 - affected_area: "ui" | "logic" | "performance" | "integration" | "other"
-- kb_references: list[str] (các mục KB liên quan, có thể rỗng)
-- solution_hint: str (gợi ý giải pháp ngắn gọn)
+- kb_references: list[str] (các mục KB liên quan, trích từ kb_text nếu có)
+- solution_hint: str (gợi ý giải pháp ngắn gọn, tiếng Việt)
 
 Chỉ trả về JSON hợp lệ, không có văn bản nào khác."""
 
@@ -192,10 +194,16 @@ Dựa trên nội dung feedback và phân tích đã có, tạo một solution d
 Chỉ trả về JSON hợp lệ, không có văn bản nào khác."""
 
 
-async def analyze_feedback(content: str, product_name: str, kb_context: str = "") -> dict:
+async def analyze_feedback(content: str, product_name: str, kb_context: str = "", product_goal: str = "", kb_text: str = "") -> dict:
     """Analyze product feedback using GPT-4o. Returns parsed analysis dict."""
+    system = ANALYZE_FEEDBACK_SYSTEM
+    if product_goal:
+        system = f"Mục tiêu sản phẩm: {product_goal}\n\n" + system
+
     user_prompt = f"Sản phẩm: {product_name}\n\nFeedback:\n{content}"
-    if kb_context:
+    if kb_text:
+        user_prompt += f"\n\nKnowledge Base:\n{kb_text}"
+    elif kb_context:
         user_prompt += f"\n\nContext KB:\n{kb_context}"
 
     try:
@@ -203,13 +211,59 @@ async def analyze_feedback(content: str, product_name: str, kb_context: str = ""
             model="gpt-4o",
             max_tokens=1024,
             messages=[
-                {"role": "system", "content": ANALYZE_FEEDBACK_SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": user_prompt},
             ],
         )
         raw = response.choices[0].message.content
         result = _parse_json_response(raw)
         return result
+    except Exception as e:
+        return {
+            "root_cause": None,
+            "impact_level": "medium",
+            "affected_area": "other",
+            "kb_references": [],
+            "solution_hint": "",
+            "error": str(e),
+        }
+
+
+async def analyze_feedback_with_image(
+    content: str,
+    image_bytes: bytes,
+    mime_type: str,
+    product_name: str,
+    product_goal: str = "",
+    kb_text: str = "",
+) -> dict:
+    """Analyze feedback with an attached image using GPT-4o vision."""
+    b64 = base64.standard_b64encode(image_bytes).decode()
+    data_url = f"data:{mime_type};base64,{b64}"
+
+    system = ANALYZE_FEEDBACK_SYSTEM
+    if product_goal:
+        system = f"Mục tiêu sản phẩm: {product_goal}\n\n" + system
+
+    parts = []
+    text_part = f"Sản phẩm: {product_name}\n\nFeedback: {content}"
+    if kb_text:
+        text_part += f"\n\nKnowledge Base:\n{kb_text}"
+    parts.append({"type": "text", "text": text_part})
+    parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
+    parts.append({"type": "text", "text": "Phân tích feedback và ảnh này, trả về JSON."})
+
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=1024,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": parts},
+            ],
+        )
+        raw = response.choices[0].message.content
+        return _parse_json_response(raw)
     except Exception as e:
         return {
             "root_cause": None,

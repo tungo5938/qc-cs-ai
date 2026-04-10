@@ -24,6 +24,9 @@ interface ProductFormData {
   kb_gdoc_url: string;
   jira_project_key: string;
   color: string;
+  product_goal: string;
+  kb_text: string;
+  google_sheet_url: string;
 }
 
 const emptyForm = (): ProductFormData => ({
@@ -32,6 +35,9 @@ const emptyForm = (): ProductFormData => ({
   kb_gdoc_url: "",
   jira_project_key: "",
   color: "#6B7280",
+  product_goal: "",
+  kb_text: "",
+  google_sheet_url: "",
 });
 
 function productToForm(p: Product): ProductFormData {
@@ -41,6 +47,9 @@ function productToForm(p: Product): ProductFormData {
     kb_gdoc_url: p.kb_gdoc_url || "",
     jira_project_key: p.jira_project_key || "",
     color: p.color || "#6B7280",
+    product_goal: p.product_goal || "",
+    kb_text: p.kb_text || "",
+    google_sheet_url: p.google_sheet_url || "",
   };
 }
 
@@ -53,12 +62,15 @@ export default function SettingsPage() {
   const [newForm, setNewForm] = useState<ProductFormData>(emptyForm());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
 
   async function loadProducts() {
     try {
       const data = await api.products.list();
       setProducts(data);
-      if (data.length === 0) {
+      // Only seed if truly empty AND not already seeding (prevent duplicate on re-render)
+      if (data.length === 0 && !sessionStorage.getItem("pm_seeded")) {
+        sessionStorage.setItem("pm_seeded", "1");
         await seedDefaults();
       }
     } catch (e: any) {
@@ -104,6 +116,9 @@ export default function SettingsPage() {
         kb_gdoc_url: editForm.kb_gdoc_url || null,
         jira_project_key: editForm.jira_project_key || null,
         color: editForm.color || null,
+        product_goal: editForm.product_goal || null,
+        kb_text: editForm.kb_text || null,
+        google_sheet_url: editForm.google_sheet_url || null,
       };
       const updated = await api.products.update(id, payload);
       setProducts(prev => prev.map(p => (p.id === id ? updated : p)));
@@ -137,6 +152,9 @@ export default function SettingsPage() {
         kb_gdoc_url: newForm.kb_gdoc_url || null,
         jira_project_key: newForm.jira_project_key || null,
         color: newForm.color || null,
+        product_goal: newForm.product_goal || null,
+        kb_text: newForm.kb_text || null,
+        google_sheet_url: newForm.google_sheet_url || null,
       };
       const created = await api.products.create(payload);
       setProducts(prev => [...prev, created]);
@@ -146,6 +164,19 @@ export default function SettingsPage() {
       setError(e.message);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleSyncSheet(productId: string) {
+    setSyncing(productId);
+    setError(null);
+    try {
+      const result = await api.feedbacks.syncSheet(productId);
+      alert(`Sync xong: ${result.imported} mới, ${result.skipped} đã có`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSyncing(null);
     }
   }
 
@@ -243,6 +274,15 @@ export default function SettingsPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
+                      {product.google_sheet_url && (
+                        <button
+                          onClick={() => handleSyncSheet(product.id)}
+                          disabled={syncing === product.id}
+                          className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1.5 rounded-lg border border-blue-100 hover:border-blue-200 transition disabled:opacity-50"
+                        >
+                          {syncing === product.id ? "Syncing..." : "Sync Sheet"}
+                        </button>
+                      )}
                       <button
                         onClick={() => startEdit(product)}
                         className="text-sm text-gray-600 hover:text-gray-900 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 transition"
@@ -329,6 +369,26 @@ function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel }: Pr
         />
       </div>
       <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">Mục tiêu sản phẩm</label>
+        <textarea
+          value={form.product_goal}
+          onChange={e => set("product_goal", e.target.value)}
+          placeholder="VD: Giảm thời gian xử lý ticket CS xuống dưới 2 phút..."
+          rows={2}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">Knowledge Base (text)</label>
+        <textarea
+          value={form.kb_text}
+          onChange={e => set("kb_text", e.target.value)}
+          placeholder="Nhập nội dung KB để AI phân tích feedback dựa trên context này..."
+          rows={4}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+        />
+      </div>
+      <div>
         <label className="block text-xs font-medium text-gray-700 mb-1">Jira Project Key</label>
         <input
           type="text"
@@ -345,6 +405,16 @@ function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel }: Pr
           value={form.kb_gdoc_url}
           onChange={e => set("kb_gdoc_url", e.target.value)}
           placeholder="https://docs.google.com/..."
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">Google Sheet URL (nguồn feedback)</label>
+        <input
+          type="url"
+          value={form.google_sheet_url}
+          onChange={e => set("google_sheet_url", e.target.value)}
+          placeholder="https://docs.google.com/spreadsheets/..."
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
         />
       </div>

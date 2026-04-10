@@ -68,6 +68,11 @@ export const api = {
     get: (id: string) => request<any>(`/api/feedbacks/${id}`),
     create: (data: any) => request<any>("/api/feedbacks", { method: "POST", body: JSON.stringify(data) }),
     analyze: (id: string) => request<any>(`/api/feedbacks/${id}/analyze`, { method: "POST" }),
+    syncSheet: (productId: string) =>
+      request<{ imported: number; skipped: number; total_rows: number }>(
+        `/api/feedbacks/sync-sheet?product_id=${productId}`,
+        { method: "POST" }
+      ),
   },
   solutions: {
     list: (params?: { product_id?: string; status?: string }) => {
