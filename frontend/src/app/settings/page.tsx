@@ -63,6 +63,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [uploading, setUploading] = useState<string | null>(null); // product id being uploaded
 
   async function loadProducts() {
     try {
@@ -167,6 +168,19 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleKbUpload(productId: string, file: File) {
+    setUploading(productId);
+    setError(null);
+    try {
+      const updated = await api.products.kbUpload(productId, file);
+      setEditForm(prev => ({ ...prev, kb_text: updated.kb_text || "" }));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setUploading(null);
+    }
+  }
+
   async function handleSyncSheet(productId: string) {
     setSyncing(productId);
     setError(null);
@@ -235,6 +249,8 @@ export default function SettingsPage() {
                       onCancel={cancelEdit}
                       saving={saving}
                       saveLabel="Lưu thay đổi"
+                      onKbUpload={(file) => handleKbUpload(product.id, file)}
+                      uploading={uploading === product.id}
                     />
                   </div>
                 ) : (
@@ -319,9 +335,11 @@ interface ProductFormProps {
   onCancel: () => void;
   saving: boolean;
   saveLabel: string;
+  onKbUpload?: (file: File) => void;
+  uploading?: boolean;
 }
 
-function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel }: ProductFormProps) {
+function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel, onKbUpload, uploading }: ProductFormProps) {
   function set(field: keyof ProductFormData, value: string) {
     onChange({ ...form, [field]: value });
   }
@@ -379,14 +397,35 @@ function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel }: Pr
         />
       </div>
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Knowledge Base (text)</label>
+        <div className="flex items-center justify-between mb-1">
+          <label className="block text-xs font-medium text-gray-700">Knowledge Base (text)</label>
+          <label className={`text-xs cursor-pointer px-2 py-1 rounded border transition ${uploading ? 'opacity-50 cursor-not-allowed border-gray-200 text-gray-400' : 'border-gray-300 text-gray-600 hover:border-gray-400 hover:text-gray-800'}`}>
+            {uploading ? "Đang upload..." : "📎 Upload .docx/.xlsx/.txt"}
+            <input
+              type="file"
+              accept=".docx,.xlsx,.txt"
+              className="hidden"
+              disabled={uploading || !onKbUpload}
+              onChange={e => {
+                const file = e.target.files?.[0];
+                if (file && onKbUpload) onKbUpload(file);
+                e.target.value = ""; // reset so same file can be re-uploaded
+              }}
+            />
+          </label>
+        </div>
         <textarea
           value={form.kb_text}
           onChange={e => set("kb_text", e.target.value)}
-          placeholder="Nhập nội dung KB để AI phân tích feedback dựa trên context này..."
-          rows={4}
-          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+          placeholder="Nhập nội dung KB hoặc upload file .docx/.xlsx/.txt..."
+          rows={6}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-y"
         />
+        {form.kb_text && (
+          <p className="text-xs text-gray-400 mt-1 text-right">
+            {form.kb_text.length.toLocaleString()} ký tự
+          </p>
+        )}
       </div>
       <div>
         <label className="block text-xs font-medium text-gray-700 mb-1">Jira Project Key</label>

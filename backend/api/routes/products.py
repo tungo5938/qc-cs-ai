@@ -1,7 +1,8 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+import io
 
 from core.database import get_db
 from models.product import Product
@@ -70,3 +71,80 @@ async def delete_product(product_id: str, db: AsyncSession = Depends(get_db)):
         raise HTTPException(404, "Product not found")
     await db.delete(product)
     await db.commit()
+
+
+@router.post("/{product_id}/kb-upload", response_model=ProductOut)
+async def upload_kb_file(
+    product_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Upload a .docx, .xlsx, or .txt file and parse it into kb_text for the product.
+    - .docx: extracts paragraphs and table cells as structured text
+    - .xlsx: extracts title (col B) + content (col F) rows as ### Title\nContent entries
+    - .txt: stored as-is
+    """
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    filename = file.filename or ""
+    content_bytes = await file.read()
+
+    try:
+        if filename.endswith(".txt"):
+            kb_text = content_bytes.decode("utf-8", errors="replace")
+
+        elif filename.endswith(".docx"):
+            import docx as _docx
+            doc = _docx.Document(io.BytesIO(content_bytes))
+            lines = []
+            for para in doc.paragraphs:
+                text = para.text.strip()
+                if not text:
+                    continue
+                if para.style.name == "Title":
+                    lines.append(f"# {text}")
+                elif para.style.name.startswith("Heading"):
+                    lines.append(f"## {text}")
+                else:
+                    lines.append(text)
+            for table in doc.tables:
+                for row in table.rows:
+                    cells = [c.text.strip() for c in row.cells if c.text.strip()]
+                    if cells:
+                        lines.append(" | ".join(cells))
+            kb_text = "\n".join(lines)
+
+        elif filename.endswith(".xlsx"):
+            import openpyxl as _openpyxl
+            wb = _openpyxl.load_workbook(io.BytesIO(content_bytes))
+            ws = wb.active
+            rows = list(ws.iter_rows(values_only=True))
+            if not rows:
+                raise HTTPException(400, "Empty spreadsheet")
+            # Skip header row. Extract col B (index 1) = title, col F (index 5) = content
+            entries = []
+            for row in rows[1:]:
+                title = str(row[1]).strip() if row[1] else ""
+                content = str(row[5]).strip() if row[5] else ""
+                if title and content:
+                    # Clean up literal \n sequences
+                    content = content.replace("\\n", "\n")
+                    entries.append(f"### {title}\n{content}")
+            kb_text = "\n\n".join(entries)
+
+        else:
+            raise HTTPException(400, f"Unsupported file type: {filename}. Use .docx, .xlsx, or .txt")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(422, f"Failed to parse file: {e}")
+
+    product.kb_text = kb_text
+    await db.commit()
+    await db.refresh(product)
+    return product

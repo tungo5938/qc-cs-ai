@@ -54,6 +54,21 @@ export const api = {
     create: (data: any) => request<any>("/api/products", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: any) => request<any>(`/api/products/${id}`, { method: "PUT", body: JSON.stringify(data) }),
     delete: (id: string) => request<any>(`/api/products/${id}`, { method: "DELETE" }),
+    kbUpload: async (productId: string, file: File) => {
+      const form = new FormData();
+      form.append("file", file);
+      // Do NOT use request() — it forces Content-Type: application/json.
+      // Use raw fetch so the browser sets multipart/form-data with the boundary.
+      const res = await fetch(`${BASE}/api/products/${productId}/kb-upload`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const text = await res.text().catch(() => res.statusText);
+        throw new Error(`${res.status}: ${text}`);
+      }
+      return res.json() as Promise<any>;
+    },
   },
 
   // ── PM Tool ─────────────────────────────────────────────────────────────────
