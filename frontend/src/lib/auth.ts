@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
-const GHN_DOMAIN_RE = /^[^@]+@(ghn\.vn|ghn\.com\.vn)$/i;
+const SUPER_ADMIN = "tunm1@ghn.vn";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -12,8 +12,10 @@ export const authOptions: NextAuthOptions = {
   ],
   callbacks: {
     async signIn({ user }) {
-      const email = user.email || "";
-      if (GHN_DOMAIN_RE.test(email)) return true;
+      const email = (user.email || "").toLowerCase();
+      // Super admin always allowed
+      if (email === SUPER_ADMIN) return true;
+      // All other accounts must be explicitly approved
       try {
         const api = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
         const res = await fetch(

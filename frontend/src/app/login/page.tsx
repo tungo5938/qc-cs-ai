@@ -42,7 +42,7 @@ function LoginContent() {
         </button>
 
         <p className="text-xs text-gray-400 mt-4">
-          Chỉ tài khoản <span className="font-mono">@ghn.vn</span> được phép truy cập
+          Tài khoản phải được admin cấp quyền trước khi đăng nhập
         </p>
       </div>
     </div>
