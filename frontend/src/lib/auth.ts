@@ -17,7 +17,7 @@ export const authOptions: NextAuthOptions = {
       if (email === SUPER_ADMIN) return true;
       // All other accounts must be explicitly approved
       try {
-        const api = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+        const api = process.env.API_BASE_URL || "http://localhost:8000";
         const res = await fetch(
           `${api}/api/auth/allowed-emails/check?email=${encodeURIComponent(email)}`
         );
