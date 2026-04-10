@@ -13,6 +13,21 @@ class MeetingNoteOut(BaseModel):
         from_attributes = True
 
 
+class MeetingBriefOut(BaseModel):
+    """Meeting without notes — used in dashboard to avoid lazy-load errors."""
+    id: str
+    product_id: str
+    name: str
+    meeting_type: str
+    participants: Optional[list] = None
+    scheduled_at: Optional[datetime] = None
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class MeetingOut(BaseModel):
     id: str
     product_id: str

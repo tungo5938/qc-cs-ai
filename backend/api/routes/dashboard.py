@@ -11,9 +11,8 @@ from models.feedback import Feedback
 from models.action_item import ActionItem
 from models.solution_draft import SolutionDraft
 from models.meeting import Meeting
-from schemas.feedback import FeedbackOut
 from schemas.action_item import ActionItemOut
-from schemas.meeting import MeetingOut
+from schemas.meeting import MeetingOut, MeetingBriefOut
 from services.metabase_service import fetch_kpis
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -88,7 +87,15 @@ async def get_dashboard(
         new_fb_q = new_fb_q.where(Feedback.product_id == product_id)
     new_fb_result = await db.execute(new_fb_q)
     new_feedbacks = [
-        FeedbackOut.model_validate(f).model_dump()
+        {
+            "id": f.id,
+            "product_id": f.product_id,
+            "raw_content": f.raw_content[:200],
+            "source": f.source,
+            "status": f.status,
+            "submitted_by": f.submitted_by,
+            "created_at": f.created_at.isoformat(),
+        }
         for f in new_fb_result.scalars().all()
     ]
 
@@ -101,11 +108,10 @@ async def get_dashboard(
     if product_id:
         today_mtg_q = today_mtg_q.where(Meeting.product_id == product_id)
     today_mtg_result = await db.execute(today_mtg_q)
-    meetings_today_list = []
-    for m in today_mtg_result.scalars().all():
-        data = MeetingOut.model_validate(m).model_dump()
-        data.pop("notes", None)  # strip notes for dashboard brevity
-        meetings_today_list.append(data)
+    meetings_today_list = [
+        MeetingBriefOut.model_validate(m).model_dump()
+        for m in today_mtg_result.scalars().all()
+    ]
 
     # ── Metabase KPIs ─────────────────────────────────────────────────────────
     metabase_kpis = await fetch_kpis()
