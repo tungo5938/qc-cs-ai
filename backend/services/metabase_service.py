@@ -75,5 +75,5 @@ async def fetch_kpis() -> dict:
         }
 
     except Exception as e:
-        print(f"[MetabaseService] fetch_kpis failed: {e}")
+        print(f"[MetabaseService] fetch_kpis failed: {type(e).__name__}: {e}")
         return PLACEHOLDER_KPIS
