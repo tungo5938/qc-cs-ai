@@ -43,6 +43,74 @@ async def fetch_ticket(ticket_key: str) -> Optional[dict]:
         }
 
 
+async def fetch_epic_tickets(epic_key: str) -> list[dict]:
+    """Fetch all Jira tickets belonging to an epic."""
+    settings = get_settings()
+    if not settings.jira_domain or not settings.jira_api_token:
+        return []
+    url = f"https://{settings.jira_domain}/rest/api/3/search"
+    jql = f'"Epic Link" = {epic_key} OR parent = {epic_key} ORDER BY created DESC'
+    async with httpx.AsyncClient() as client:
+        r = await client.get(
+            url,
+            params={"jql": jql, "maxResults": 50, "fields": "summary,status,issuetype,assignee"},
+            headers=_auth_header(),
+            timeout=10,
+        )
+    if r.status_code != 200:
+        return []
+    issues = r.json().get("issues", [])
+    return [
+        {
+            "key": i["key"],
+            "title": i["fields"]["summary"],
+            "status": i["fields"]["status"]["name"],
+            "type": i["fields"]["issuetype"]["name"],
+            "url": f"https://{settings.jira_domain}/browse/{i['key']}",
+        }
+        for i in issues
+    ]
+
+
+async def create_ticket(project_key: str, title: str, description: str, issue_type: str = "Task") -> dict:
+    """Create a new Jira ticket."""
+    settings = get_settings()
+    url = f"https://{settings.jira_domain}/rest/api/3/issue"
+    payload = {
+        "fields": {
+            "project": {"key": project_key},
+            "summary": title,
+            "description": {"type": "doc", "version": 1, "content": [{"type": "paragraph", "content": [{"type": "text", "text": description}]}]},
+            "issuetype": {"name": issue_type},
+        }
+    }
+    async with httpx.AsyncClient() as client:
+        r = await client.post(url, json=payload, headers=_auth_header(), timeout=10)
+    r.raise_for_status()
+    data = r.json()
+    return {"key": data["key"], "url": f"https://{settings.jira_domain}/browse/{data['key']}"}
+
+
+async def update_ticket_status(ticket_key: str, transition_name: str) -> bool:
+    """Transition a Jira ticket to a new status."""
+    settings = get_settings()
+    async with httpx.AsyncClient() as client:
+        tr = await client.get(
+            f"https://{settings.jira_domain}/rest/api/3/issue/{ticket_key}/transitions",
+            headers=_auth_header(), timeout=10,
+        )
+        transitions = tr.json().get("transitions", [])
+        match = next((t for t in transitions if transition_name.lower() in t["name"].lower()), None)
+        if not match:
+            return False
+        r = await client.post(
+            f"https://{settings.jira_domain}/rest/api/3/issue/{ticket_key}/transitions",
+            json={"transition": {"id": match["id"]}},
+            headers=_auth_header(), timeout=10,
+        )
+    return r.status_code == 204
+
+
 def _extract_adf_text(adf: dict | str) -> str:
     """Extract plain text from Atlassian Document Format (ADF) or plain string."""
     if isinstance(adf, str):

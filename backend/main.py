@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from core.config import get_settings
 from core.database import engine
-from api.routes import issues, knowledge_base, jira_webhook, telegram_webhook, upload, scoring, products, feedbacks, solutions, meetings, action_items, dashboard, auth_settings
+from api.routes import issues, knowledge_base, jira_webhook, jira_workspace, telegram_webhook, upload, scoring, products, feedbacks, solutions, meetings, action_items, dashboard, auth_settings, priority_config
 
 
 async def _ensure_feedback_rating_columns() -> None:
@@ -22,6 +22,9 @@ async def _ensure_feedback_rating_columns() -> None:
         await conn.execute(
             text("ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS priority_score DOUBLE PRECISION")
         )
+        await conn.execute(
+            text("ALTER TABLE feedbacks ADD COLUMN IF NOT EXISTS feedback_type TEXT")
+        )
 
 
 @asynccontextmanager
@@ -34,7 +37,7 @@ async def lifespan(app: FastAPI):
         application = get_application()
         await application.initialize()
         if settings.backend_base_url and settings.backend_base_url.startswith("https://"):
-            webhook_url = f"{settings.backend_base_url.rstrip('/')}/api/telegram/webhook"
+            webhook_url = f"{settings.frontend_url.rstrip('/')}/api/telegram/webhook"
             await application.bot.set_webhook(
                 url=webhook_url,
                 secret_token=settings.telegram_webhook_secret or None,
@@ -66,6 +69,7 @@ app.add_middleware(
 app.include_router(issues.router, prefix="/api")
 app.include_router(knowledge_base.router, prefix="/api")
 app.include_router(jira_webhook.router, prefix="/api")
+app.include_router(jira_workspace.router, prefix="/api")
 app.include_router(telegram_webhook.router, prefix="/api")
 app.include_router(upload.router, prefix="/api")
 app.include_router(scoring.router, prefix="/api")
@@ -76,6 +80,7 @@ app.include_router(meetings.router, prefix="/api")
 app.include_router(action_items.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(auth_settings.router, prefix="/api")
+app.include_router(priority_config.router, prefix="/api")
 
 
 @app.get("/health")
