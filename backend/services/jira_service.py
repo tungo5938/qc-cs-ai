@@ -6,6 +6,7 @@ import httpx
 from core.config import get_settings
 
 JIRA_KEY_RE = re.compile(r"([A-Z][A-Z0-9]+-\d+)")
+JIRA_KEY_STRICT_RE = re.compile(r'^[A-Z][A-Z0-9_]+-\d+$')
 
 
 def extract_ticket_key(jira_url: str) -> Optional[str]:
@@ -48,6 +49,8 @@ async def fetch_epic_tickets(epic_key: str) -> list[dict]:
     settings = get_settings()
     if not settings.jira_domain or not settings.jira_api_token:
         return []
+    if not JIRA_KEY_STRICT_RE.match(epic_key):
+        return []
     url = f"https://{settings.jira_domain}/rest/api/3/search"
     jql = f'"Epic Link" = {epic_key} OR parent = {epic_key} ORDER BY created DESC'
     async with httpx.AsyncClient() as client:
@@ -75,6 +78,8 @@ async def fetch_epic_tickets(epic_key: str) -> list[dict]:
 async def create_ticket(project_key: str, title: str, description: str, issue_type: str = "Task") -> dict:
     """Create a new Jira ticket."""
     settings = get_settings()
+    if not settings.jira_domain or not settings.jira_email or not settings.jira_api_token:
+        raise ValueError("Jira credentials not configured")
     url = f"https://{settings.jira_domain}/rest/api/3/issue"
     payload = {
         "fields": {
@@ -94,11 +99,17 @@ async def create_ticket(project_key: str, title: str, description: str, issue_ty
 async def update_ticket_status(ticket_key: str, transition_name: str) -> bool:
     """Transition a Jira ticket to a new status."""
     settings = get_settings()
+    if not settings.jira_domain or not settings.jira_email or not settings.jira_api_token:
+        return False
     async with httpx.AsyncClient() as client:
         tr = await client.get(
             f"https://{settings.jira_domain}/rest/api/3/issue/{ticket_key}/transitions",
             headers=_auth_header(), timeout=10,
         )
+        if tr.status_code == 404:
+            raise ValueError(f"Ticket {ticket_key} not found")
+        if tr.status_code != 200:
+            return False
         transitions = tr.json().get("transitions", [])
         match = next((t for t in transitions if transition_name.lower() in t["name"].lower()), None)
         if not match:
