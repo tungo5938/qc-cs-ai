@@ -16,6 +16,10 @@ class SolutionDraftOut(BaseModel):
     status: str
     rejection_reason: Optional[str] = None
     gdoc_url: Optional[str] = None
+    prd_content: Optional[dict] = None
+    tldraw_data: Optional[dict] = None
+    jira_epic_key: Optional[str] = None
+    solution_chat_history: Optional[list] = None
     created_at: datetime
     updated_at: datetime
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
 from sqlalchemy import String, Text, ForeignKey, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.dialects.postgresql import JSONB
 from core.database import Base
 from models.base import gen_uuid
 
@@ -24,6 +25,10 @@ class SolutionDraft(Base):
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")  # 'draft' | 'approved' | 'rejected'
     rejection_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     gdoc_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Phase 2
+    prd_content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    tldraw_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    jira_epic_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    solution_chat_history: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True, default=list)
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
