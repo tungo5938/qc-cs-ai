@@ -28,7 +28,7 @@ class SolutionDraft(Base):
     prd_content: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     tldraw_data: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     jira_epic_key: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    solution_chat_history: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True, default=list)
+    solution_chat_history: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True, default=list, server_default='[]')
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
