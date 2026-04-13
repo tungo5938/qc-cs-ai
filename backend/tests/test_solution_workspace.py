@@ -27,3 +27,11 @@ def test_patch_prd_saves_content(client, solution_id):
                      json=payload, headers={"x-user-email": PM})
     assert r.status_code == 200
     assert r.json()["prd_content"]["type"] == "doc"
+
+
+def test_patch_jira_epic_saves_key(client, solution_id):
+    payload = {"jira_epic_key": "CSAI-99"}
+    r = client.patch(f"/api/solutions/{solution_id}/jira-epic",
+                     json=payload, headers={"x-user-email": PM})
+    assert r.status_code == 200
+    assert r.json()["jira_epic_key"] == "CSAI-99"

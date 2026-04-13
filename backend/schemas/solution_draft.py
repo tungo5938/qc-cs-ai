@@ -37,3 +37,13 @@ class SolutionDraftUpdate(BaseModel):
 
 class SolutionDraftReject(BaseModel):
     rejection_reason: str
+
+
+class CanvasPatch(BaseModel):
+    tldraw_data: dict
+
+class PrdPatch(BaseModel):
+    prd_content: dict
+
+class JiraEpicPatch(BaseModel):
+    jira_epic_key: str

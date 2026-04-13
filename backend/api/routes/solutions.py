@@ -1,14 +1,13 @@
 from __future__ import annotations
-from typing import Optional, Any
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.database import get_db
 from models.solution_draft import SolutionDraft
-from schemas.solution_draft import SolutionDraftOut, SolutionDraftUpdate, SolutionDraftReject
+from schemas.solution_draft import SolutionDraftOut, SolutionDraftUpdate, SolutionDraftReject, CanvasPatch, PrdPatch, JiraEpicPatch
 
 router = APIRouter(prefix="/solutions", tags=["solutions"])
 
@@ -117,16 +116,6 @@ async def approve_solution(
     return _to_out(draft)
 
 
-class CanvasPatch(BaseModel):
-    tldraw_data: dict
-
-class PrdPatch(BaseModel):
-    prd_content: dict
-
-class JiraEpicPatch(BaseModel):
-    jira_epic_key: str
-
-
 @router.patch("/{solution_id}/canvas")
 async def patch_canvas(solution_id: str, body: CanvasPatch, db: AsyncSession = Depends(get_db)):
     result = await db.execute(
@@ -134,13 +123,10 @@ async def patch_canvas(solution_id: str, body: CanvasPatch, db: AsyncSession = D
     )
     draft = result.scalar_one_or_none()
     if not draft:
-        raise HTTPException(404, "Not found")
+        raise HTTPException(404, "Không tìm thấy bản thảo giải pháp")
     draft.tldraw_data = body.tldraw_data
     await db.commit()
-    result = await db.execute(
-        select(SolutionDraft).options(selectinload(SolutionDraft.product)).where(SolutionDraft.id == solution_id)
-    )
-    draft = result.scalar_one_or_none()
+    await db.refresh(draft)
     return _to_out(draft)
 
 
@@ -151,13 +137,10 @@ async def patch_prd(solution_id: str, body: PrdPatch, db: AsyncSession = Depends
     )
     draft = result.scalar_one_or_none()
     if not draft:
-        raise HTTPException(404, "Not found")
+        raise HTTPException(404, "Không tìm thấy bản thảo giải pháp")
     draft.prd_content = body.prd_content
     await db.commit()
-    result = await db.execute(
-        select(SolutionDraft).options(selectinload(SolutionDraft.product)).where(SolutionDraft.id == solution_id)
-    )
-    draft = result.scalar_one_or_none()
+    await db.refresh(draft)
     return _to_out(draft)
 
 
@@ -168,13 +151,10 @@ async def patch_jira_epic(solution_id: str, body: JiraEpicPatch, db: AsyncSessio
     )
     draft = result.scalar_one_or_none()
     if not draft:
-        raise HTTPException(404, "Not found")
+        raise HTTPException(404, "Không tìm thấy bản thảo giải pháp")
     draft.jira_epic_key = body.jira_epic_key
     await db.commit()
-    result = await db.execute(
-        select(SolutionDraft).options(selectinload(SolutionDraft.product)).where(SolutionDraft.id == solution_id)
-    )
-    draft = result.scalar_one_or_none()
+    await db.refresh(draft)
     return _to_out(draft)
 
 
