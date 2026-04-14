@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -156,6 +157,44 @@ async def patch_jira_epic(solution_id: str, body: JiraEpicPatch, db: AsyncSessio
     await db.commit()
     await db.refresh(draft)
     return _to_out(draft)
+
+
+class ChatMessage(BaseModel):
+    message: str
+    jira_tickets: list[dict] = []
+
+
+@router.post("/{solution_id}/chat")
+async def chat_solution(
+    solution_id: str,
+    body: ChatMessage,
+    db: AsyncSession = Depends(get_db),
+):
+    from services import ai_service
+    result = await db.execute(
+        select(SolutionDraft)
+        .options(selectinload(SolutionDraft.product))
+        .where(SolutionDraft.id == solution_id)
+    )
+    draft = result.scalar_one_or_none()
+    if not draft:
+        raise HTTPException(404, "Không tìm thấy bản thảo giải pháp")
+
+    action = await ai_service.chat_with_workspace_context(
+        message=body.message,
+        prd_content=draft.prd_content,
+        tldraw_data=draft.tldraw_data,
+        jira_tickets=body.jira_tickets,
+        solution_title=draft.problem_statement or solution_id,
+    )
+
+    history = list(draft.solution_chat_history or [])
+    history.append({"role": "user", "content": body.message})
+    history.append({"role": "assistant", "content": action.get("message", "")})
+    draft.solution_chat_history = history[-40:]
+
+    await db.commit()
+    return action
 
 
 @router.post("/{solution_id}/reject")

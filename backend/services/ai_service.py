@@ -194,6 +194,30 @@ Dựa trên nội dung feedback và phân tích đã có, tạo một solution d
 Chỉ trả về JSON hợp lệ, không có văn bản nào khác."""
 
 
+def _format_kb_for_prompt(kb_text: str) -> str:
+    """Format kb_text (either JSON array or plain text) for AI prompt."""
+    if not kb_text:
+        return ""
+    import json as _json
+    try:
+        entries = _json.loads(kb_text)
+        if isinstance(entries, list):
+            parts = []
+            for e in entries:
+                if isinstance(e, dict):
+                    title = e.get("title", "")
+                    content = e.get("content", "")
+                    if title and content:
+                        parts.append(f"### {title}\n{content}")
+                    elif content:
+                        parts.append(content)
+            return "\n\n".join(parts)
+    except Exception:
+        pass
+    # Plain text fallback
+    return kb_text
+
+
 async def analyze_feedback(content: str, product_name: str, kb_context: str = "", product_goal: str = "", kb_text: str = "") -> dict:
     """Analyze product feedback using GPT-4o. Returns parsed analysis dict."""
     system = ANALYZE_FEEDBACK_SYSTEM
@@ -201,8 +225,10 @@ async def analyze_feedback(content: str, product_name: str, kb_context: str = ""
         system = f"Mục tiêu sản phẩm: {product_goal}\n\n" + system
 
     user_prompt = f"Sản phẩm: {product_name}\n\nFeedback:\n{content}"
-    if kb_text:
-        user_prompt += f"\n\nKnowledge Base:\n{kb_text}"
+    formatted_kb = _format_kb_for_prompt(kb_text)
+    if formatted_kb:
+        # Limit to 20000 chars to avoid token overflow
+        user_prompt += f"\n\nKnowledge Base:\n{formatted_kb[:20000]}"
     elif kb_context:
         user_prompt += f"\n\nContext KB:\n{kb_context}"
 
@@ -247,8 +273,10 @@ async def analyze_feedback_with_image(
 
     parts = []
     text_part = f"Sản phẩm: {product_name}\n\nFeedback: {content}"
-    if kb_text:
-        text_part += f"\n\nKnowledge Base:\n{kb_text}"
+    formatted_kb = _format_kb_for_prompt(kb_text)
+    if formatted_kb:
+        # Limit to 20000 chars to avoid token overflow
+        text_part += f"\n\nKnowledge Base:\n{formatted_kb[:20000]}"
     parts.append({"type": "text", "text": text_part})
     parts.append({"type": "image_url", "image_url": {"url": data_url, "detail": "high"}})
     parts.append({"type": "text", "text": "Phân tích feedback và ảnh này, trả về JSON."})
@@ -313,6 +341,61 @@ async def extract_action_items(meeting_notes: str, product_name: str) -> list[di
     except Exception as e:
         print(f"[extract_action_items] failed: {e}")
         return []
+
+
+async def chat_with_workspace_context(
+    message: str,
+    prd_content: dict | None,
+    tldraw_data: dict | None,
+    jira_tickets: list[dict],
+    solution_title: str,
+) -> dict:
+    """
+    Returns structured action:
+    {
+      "action": "update_prd" | "create_jira_ticket" | "update_canvas" | "reply_only",
+      "prd_patch": {"section_id": str | null, "new_content": str} | None,
+      "jira_ticket": {"title": str, "description": str, "type": str} | None,
+      "canvas_patch": {"shape_id": str, "label": str} | None,
+      "message": str
+    }
+    """
+    context_parts = [f"Solution: {solution_title}"]
+    if prd_content:
+        context_parts.append(f"PRD (Tiptap JSON): {json.dumps(prd_content)[:2000]}")
+    if tldraw_data:
+        context_parts.append(f"Canvas shapes: {json.dumps(tldraw_data)[:1000]}")
+    if jira_tickets:
+        ticket_summary = ", ".join(
+            f"{t['key']}: {t['title']} ({t['status']})" for t in jira_tickets[:10]
+        )
+        context_parts.append(f"Jira tickets: {ticket_summary}")
+
+    system_prompt = """You are a PM assistant helping manage product solutions.
+You have access to a PRD document, canvas diagram, and Jira tickets.
+When the user asks you to update something, return a structured JSON action.
+
+Respond ONLY with valid JSON in this format:
+{
+  "action": "update_prd" | "create_jira_ticket" | "update_canvas" | "reply_only",
+  "prd_patch": {"section_id": "string or null", "new_content": "the new text content"} or null,
+  "jira_ticket": {"title": "...", "description": "...", "type": "Task"} or null,
+  "canvas_patch": {"shape_id": "...", "label": "..."} or null,
+  "message": "Human-readable confirmation message in Vietnamese"
+}"""
+
+    response = await get_client().chat.completions.create(
+        model="gpt-4o",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": "\n".join(context_parts) + f"\n\nUser request: {message}",
+            },
+        ],
+        temperature=0.3,
+    )
+    return _parse_json_response(response.choices[0].message.content)
 
 
 async def generate_solution_draft(feedback_content: str, analysis: dict, product_name: str) -> dict:
