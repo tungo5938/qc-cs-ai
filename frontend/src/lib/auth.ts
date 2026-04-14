@@ -1,7 +1,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 
-const SUPER_ADMIN = "tunm1@ghn.vn";
+const SUPER_ADMINS = ["tunm1@ghn.vn", "giangh@ghn.vn"];
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -13,8 +13,8 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async signIn({ user }) {
       const email = (user.email || "").toLowerCase();
-      // Super admin always allowed
-      if (email === SUPER_ADMIN) return true;
+      // Super admins always allowed
+      if (SUPER_ADMINS.includes(email)) return true;
       // All other accounts must be explicitly approved
       try {
         const api = process.env.API_BASE_URL || "http://localhost:8000";
