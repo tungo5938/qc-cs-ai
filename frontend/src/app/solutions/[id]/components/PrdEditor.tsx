@@ -16,6 +16,7 @@ export function PrdEditor({ solutionId, initialContent }: PrdEditorProps) {
 
   const editor = useEditor({
     extensions: [StarterKit],
+    immediatelyRender: false,
     content: (initialContent as any) || "<p>Bắt đầu viết PRD...</p>",
     onUpdate: ({ editor }) => {
       if (saveTimeout.current) clearTimeout(saveTimeout.current);
