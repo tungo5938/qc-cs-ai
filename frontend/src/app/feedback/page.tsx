@@ -9,6 +9,8 @@ import {
   FEEDBACK_STATUS_COLORS,
   FEEDBACK_SOURCE_LABELS,
   FEEDBACK_SOURCE_COLORS,
+  FEEDBACK_TYPE_LABELS,
+  FEEDBACK_TYPE_COLORS,
 } from "@/lib/constants";
 
 const STATUS_TABS = [
@@ -19,12 +21,18 @@ const STATUS_TABS = [
   { value: "solution_drafted", label: "Đã tạo solution" },
 ];
 
+const TYPE_TABS = [
+  { value: "", label: "Tất cả" },
+  { value: "bug", label: "🐛 Bug" },
+  { value: "feature", label: "✨ Feature" },
+  { value: "unclear", label: "❓ Chưa rõ" },
+];
+
 function FeedbackCard({ fb }: { fb: Feedback }) {
+  const hasRatings = fb.user_priority != null || fb.tu_danh_gia != null || fb.tech_rating != null;
+
   return (
-    <Link
-      href={`/feedback/${fb.id}`}
-      className="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-red-200 hover:shadow-md transition"
-    >
+    <Link href={`/feedback/${fb.id}`} className="block bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-red-200 hover:shadow-md transition">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-2">
@@ -33,22 +41,37 @@ function FeedbackCard({ fb }: { fb: Feedback }) {
                 {fb.product_name}
               </span>
             )}
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                FEEDBACK_SOURCE_COLORS[fb.source] ?? "bg-gray-100 text-gray-600"
-              }`}
-            >
+            {fb.feedback_type && (
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_TYPE_COLORS[fb.feedback_type] ?? "bg-gray-100 text-gray-600"}`}>
+                {FEEDBACK_TYPE_LABELS[fb.feedback_type] ?? fb.feedback_type}
+              </span>
+            )}
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_SOURCE_COLORS[fb.source] ?? "bg-gray-100 text-gray-600"}`}>
               {FEEDBACK_SOURCE_LABELS[fb.source] ?? fb.source}
             </span>
-            <span
-              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                FEEDBACK_STATUS_COLORS[fb.status] ?? "bg-gray-100 text-gray-600"
-              }`}
-            >
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_STATUS_COLORS[fb.status] ?? "bg-gray-100 text-gray-600"}`}>
               {FEEDBACK_STATUS_LABELS[fb.status] ?? fb.status}
             </span>
+            {fb.priority_score != null && (
+              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-semibold">
+                ★ {fb.priority_score.toFixed(1)}
+              </span>
+            )}
           </div>
           <p className="text-sm text-gray-800 line-clamp-2">{fb.raw_content}</p>
+          {hasRatings && (
+            <div className="flex gap-3 mt-2">
+              {fb.user_priority != null && (
+                <span className="text-xs text-gray-500">👤 {fb.user_priority}/10</span>
+              )}
+              {fb.tu_danh_gia != null && (
+                <span className="text-xs text-gray-500">🤖 {fb.tu_danh_gia}/10</span>
+              )}
+              {fb.tech_rating != null && (
+                <span className="text-xs text-gray-500">⚙️ {fb.tech_rating}/10</span>
+              )}
+            </div>
+          )}
         </div>
         <span className="text-xs text-gray-400 shrink-0">
           {new Date(fb.created_at).toLocaleDateString("vi-VN")}
@@ -62,13 +85,15 @@ export default function FeedbackListPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
   const [productId, setProductId] = useState<string>("");
+  const [syncing, setSyncing] = useState(false);
 
   const load = useCallback(
-    (pid: string, status: string) => {
+    (pid: string, status: string, type: string) => {
       setLoading(true);
       api.feedbacks
-        .list({ product_id: pid || undefined, status: status || undefined })
+        .list({ product_id: pid || undefined, status: status || undefined, feedback_type: type || undefined })
         .then((r) => setFeedbacks(r as Feedback[]))
         .finally(() => setLoading(false));
     },
@@ -78,51 +103,100 @@ export default function FeedbackListPage() {
   useEffect(() => {
     const pid = localStorage.getItem(PRODUCT_FILTER_KEY) || "";
     setProductId(pid);
-    load(pid, statusFilter);
+    load(pid, statusFilter, typeFilter);
 
     function onStorage(e: StorageEvent) {
       if (e.key === PRODUCT_FILTER_KEY) {
         const newPid = e.newValue || "";
         setProductId(newPid);
-        load(newPid, statusFilter);
+        load(newPid, statusFilter, typeFilter);
       }
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [load, statusFilter]);
+  }, [load, statusFilter, typeFilter]);
 
   function handleStatusChange(s: string) {
     setStatusFilter(s);
-    load(productId, s);
+    load(productId, s, typeFilter);
+  }
+
+  function handleTypeChange(t: string) {
+    setTypeFilter(t);
+    load(productId, statusFilter, t);
+  }
+
+  async function handleSync() {
+    if (!productId) return;
+    setSyncing(true);
+    try {
+      const data = await api.feedbacks.syncSheet(productId);
+      alert(`Sync xong: ${data.imported} mới, ${data.skipped} đã có`);
+      load(productId, statusFilter, typeFilter);
+    } catch (e: any) {
+      alert('Sync failed: ' + e.message);
+    } finally {
+      setSyncing(false);
+    }
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Phản hồi</h1>
-        <Link
-          href="/feedback/new"
-          className="bg-red-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-700 transition font-medium"
-        >
-          + Thêm manual
-        </Link>
+        <div className="flex items-center gap-2">
+          {productId && (
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="text-sm px-4 py-2 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 transition disabled:opacity-50"
+            >
+              {syncing ? "Syncing..." : "Sync Sheet"}
+            </button>
+          )}
+          <Link
+            href="/feedback/new"
+            className="bg-red-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-700 transition font-medium"
+          >
+            + Thêm manual
+          </Link>
+        </div>
       </div>
 
-      {/* Status filter tabs */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
-        {STATUS_TABS.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => handleStatusChange(tab.value)}
-            className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
-              statusFilter === tab.value
-                ? "bg-white shadow text-gray-900"
-                : "text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap gap-3">
+        {/* Status filter tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
+          {STATUS_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => handleStatusChange(tab.value)}
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
+                statusFilter === tab.value
+                  ? "bg-white shadow text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Type filter tabs */}
+        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
+          {TYPE_TABS.map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => handleTypeChange(tab.value)}
+              className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${
+                typeFilter === tab.value
+                  ? "bg-white shadow text-gray-900"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {loading ? (
