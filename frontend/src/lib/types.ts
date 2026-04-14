@@ -86,7 +86,9 @@ export type FeedbackStatus =
   | "analyzed"
   | "solution_drafted";
 
-export type FeedbackSource = "telegram" | "manual";
+export type FeedbackSource = "telegram" | "manual" | "gsheet";
+
+export type FeedbackType = "bug" | "feature" | "unclear";
 
 export type EffortSize = "S" | "M" | "L" | "XL";
 
@@ -107,13 +109,27 @@ export interface FeedbackAnalysis {
   kb_references: string[];
 }
 
+export interface PriorityConfig {
+  user_rating_weight: number;
+  ai_rating_weight: number;
+  tech_rating_weight: number;
+}
+
 export interface Feedback {
   id: string;
   product_id: string;
   product_name?: string;
+  feedback_type?: FeedbackType | null;
   source: FeedbackSource;
   status: FeedbackStatus;
   raw_content: string;
+  media_urls?: string[] | null;
+  submitted_by?: string | null;
+  user_priority?: number | null;
+  tu_danh_gia?: number | null;
+  tech_rating?: number | null;
+  priority_score?: number | null;
+  gsheet_row_index?: number | null;
   analysis?: FeedbackAnalysis | null;
   solution_id?: string | null;
   created_at: string;
@@ -178,6 +194,22 @@ export interface MetabaseKpi {
   value: number | null;
   unit: string;
   source: "metabase" | "placeholder";
+}
+
+export interface JiraTicket {
+  key: string;
+  title: string;
+  status: string;
+  type: string;
+  url: string;
+}
+
+export interface WorkspaceAction {
+  action: "update_prd" | "create_jira_ticket" | "update_canvas" | "reply_only";
+  prd_patch: { section_id: string | null; new_content: string } | null;
+  jira_ticket: { title: string; description: string; type: string } | null;
+  canvas_patch: { shape_id: string; label: string } | null;
+  message: string;
 }
 
 export interface DashboardData {

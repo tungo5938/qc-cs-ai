@@ -11,12 +11,16 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
+    "@tiptap/react": "^3.22.3",
+    "@tiptap/starter-kit": "^3.22.3",
+    "@tldraw/tldraw": "^4.5.8",
     "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "next": "15.1.11",
     "next-auth": "^4.24.13",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-resizable-panels": "^4.10.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

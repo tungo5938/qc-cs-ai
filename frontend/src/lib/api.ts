@@ -75,11 +75,17 @@ export const api = {
   },
 
   // ── PM Tool ─────────────────────────────────────────────────────────────────
+  priorityConfig: {
+    get: () => request<any>("/api/priority-config"),
+    update: (body: { user_rating_weight: number; ai_rating_weight: number; tech_rating_weight: number }) =>
+      request<any>("/api/priority-config", { method: "PUT", body: JSON.stringify(body) }),
+  },
   feedbacks: {
-    list: (params?: { product_id?: string; status?: string }) => {
+    list: (params?: { product_id?: string; status?: string; feedback_type?: string }) => {
       const qs = new URLSearchParams();
       if (params?.product_id) qs.set("product_id", params.product_id);
       if (params?.status) qs.set("status", params.status);
+      if (params?.feedback_type) qs.set("feedback_type", params.feedback_type);
       const query = qs.toString() ? `?${qs}` : "";
       return request<any[]>(`/api/feedbacks${query}`);
     },
@@ -105,6 +111,21 @@ export const api = {
     approve: (id: string) => request<any>(`/api/solutions/${id}/approve`, { method: "POST" }),
     reject: (id: string, reason: string) =>
       request<any>(`/api/solutions/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
+    patchCanvas: (id: string, tldrawData: object) =>
+      request<any>(`/api/solutions/${id}/canvas`, { method: "PATCH", body: JSON.stringify({ tldraw_data: tldrawData }) }),
+    patchPrd: (id: string, prdContent: object) =>
+      request<any>(`/api/solutions/${id}/prd`, { method: "PATCH", body: JSON.stringify({ prd_content: prdContent }) }),
+    patchJiraEpic: (id: string, epicKey: string) =>
+      request<any>(`/api/solutions/${id}/jira-epic`, { method: "PATCH", body: JSON.stringify({ jira_epic_key: epicKey }) }),
+    chat: (id: string, message: string, jiraTickets: any[]) =>
+      request<any>(`/api/solutions/${id}/chat`, { method: "POST", body: JSON.stringify({ message, jira_tickets: jiraTickets }) }),
+  },
+  jira: {
+    getEpicTickets: (epicKey: string) => request<any[]>(`/api/jira/epic/${epicKey}/tickets`),
+    createTicket: (data: { project_key: string; title: string; description: string; issue_type?: string }) =>
+      request<any>("/api/jira/tickets", { method: "POST", body: JSON.stringify(data) }),
+    updateTicket: (key: string, transition: string) =>
+      request<any>(`/api/jira/tickets/${key}`, { method: "PATCH", body: JSON.stringify({ transition }) }),
   },
   meetings: {
     list: (params?: { product_id?: string; status?: string }) => {
