@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useCallback } from "react";
 import { Tldraw } from "@tldraw/tldraw";
-import type { Editor, TLShape } from "@tldraw/tldraw";
+import type { Editor } from "@tldraw/tldraw";
 import "@tldraw/tldraw/tldraw.css";
 import { useWorkspace } from "./WorkspaceContext";
 import { api } from "@/lib/api";
@@ -15,6 +15,8 @@ export function CanvasPanel({ solutionId, initialData }: CanvasPanelProps) {
   const editorRef = useRef<Editor | null>(null);
   const saveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { highlightFromCanvas, canvasHighlight } = useWorkspace();
+  const highlightFromCanvasRef = useRef(highlightFromCanvas);
+  highlightFromCanvasRef.current = highlightFromCanvas;
 
   const handleMount = useCallback(
     (editor: Editor) => {
@@ -28,6 +30,7 @@ export function CanvasPanel({ solutionId, initialData }: CanvasPanelProps) {
         }
       }
 
+      // Auto-save on any store change (debounce 2s)
       editor.store.listen(() => {
         if (saveTimeout.current) clearTimeout(saveTimeout.current);
         saveTimeout.current = setTimeout(async () => {
@@ -36,14 +39,16 @@ export function CanvasPanel({ solutionId, initialData }: CanvasPanelProps) {
         }, 2000);
       });
 
-      editor.on("click", (info: any) => {
-        const shape: TLShape | undefined = info.shape;
-        if (shape?.meta?.anchorId) {
-          highlightFromCanvas(shape.meta.anchorId as string);
+      // Detect shape clicks with anchor_id via selection change
+      editor.on("change", () => {
+        const selected = editor.getSelectedShapes();
+        if (selected.length === 1 && selected[0].meta?.anchorId) {
+          highlightFromCanvasRef.current(selected[0].meta.anchorId as string);
         }
       });
     },
-    [solutionId, initialData, highlightFromCanvas]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [solutionId, initialData]
   );
 
   useEffect(() => {

@@ -160,12 +160,26 @@ export const PRODUCT_COLORS: Record<string, string> = {
   "Voice AI": "bg-purple-100 text-purple-800",
 };
 
+export const FEEDBACK_TYPE_LABELS: Record<string, string> = {
+  bug: "Bug",
+  feature: "Feature",
+  unclear: "Chưa rõ",
+};
+
+export const FEEDBACK_TYPE_COLORS: Record<string, string> = {
+  bug: "bg-red-100 text-red-800",
+  feature: "bg-blue-100 text-blue-800",
+  unclear: "bg-gray-100 text-gray-600",
+};
+
 export const FEEDBACK_SOURCE_LABELS: Record<string, string> = {
   telegram: "Telegram",
   manual: "Thủ công",
+  gsheet: "Google Sheet",
 };
 
 export const FEEDBACK_SOURCE_COLORS: Record<string, string> = {
   telegram: "bg-sky-100 text-sky-800",
   manual: "bg-gray-100 text-gray-700",
+  gsheet: "bg-green-100 text-green-700",
 };
