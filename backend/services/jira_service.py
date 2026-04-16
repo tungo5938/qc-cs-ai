@@ -122,6 +122,134 @@ async def update_ticket_status(ticket_key: str, transition_name: str) -> bool:
     return r.status_code == 204
 
 
+def _build_adf_document(sections: list[tuple[str, str]]) -> dict:
+    """Build Atlassian Document Format doc from (heading, body) tuples."""
+    content = []
+    for heading, body in sections:
+        if heading:
+            content.append({
+                "type": "heading",
+                "attrs": {"level": 2},
+                "content": [{"type": "text", "text": heading}]
+            })
+        if body:
+            for paragraph in body.split("\n"):
+                paragraph = paragraph.strip()
+                if not paragraph:
+                    continue
+                content.append({
+                    "type": "paragraph",
+                    "content": [{"type": "text", "text": paragraph}]
+                })
+    return {"type": "doc", "version": 1, "content": content}
+
+
+async def lookup_user_account_id(email: str) -> Optional[str]:
+    """Lookup Jira user accountId by email. Returns None if not found."""
+    settings = get_settings()
+    if not settings.jira_domain or not settings.jira_email or not settings.jira_api_token:
+        return None
+    url = f"https://{settings.jira_domain}/rest/api/3/user/search"
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url, params={"query": email}, headers=_auth_header())
+    if r.status_code != 200:
+        return None
+    users = r.json()
+    if not users:
+        return None
+    return users[0].get("accountId")
+
+
+async def lookup_sprint_id(board_id: int, sprint_name: str) -> Optional[int]:
+    """Lookup sprint ID by name on a board. Returns None if not found."""
+    settings = get_settings()
+    if not settings.jira_domain or not settings.jira_api_token:
+        return None
+    url = f"https://{settings.jira_domain}/rest/agile/1.0/board/{board_id}/sprint"
+    async with httpx.AsyncClient(timeout=10) as client:
+        r = await client.get(url, params={"state": "active,future", "maxResults": 50}, headers=_auth_header())
+    if r.status_code != 200:
+        return None
+    sprints = r.json().get("values", [])
+    name_lower = sprint_name.lower()
+    for sprint in sprints:
+        if name_lower in sprint.get("name", "").lower():
+            return sprint["id"]
+    return None
+
+
+async def upload_attachment(ticket_key: str, image_url: str) -> bool:
+    """Download image from URL and upload as Jira attachment. Returns True on success."""
+    settings = get_settings()
+    if not settings.jira_domain or not settings.jira_email or not settings.jira_api_token:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            img_resp = await client.get(image_url)
+            if img_resp.status_code != 200:
+                return False
+            content_type = img_resp.headers.get("content-type", "image/jpeg")
+            filename = image_url.split("/")[-1].split("?")[0] or "attachment.jpg"
+            auth_header = _auth_header()
+            auth_header.pop("Content-Type", None)
+            auth_header["X-Atlassian-Token"] = "no-check"
+            upload_url = f"https://{settings.jira_domain}/rest/api/3/issue/{ticket_key}/attachments"
+            r = await client.post(
+                upload_url,
+                headers=auth_header,
+                files={"file": (filename, img_resp.content, content_type)},
+            )
+        return r.status_code == 200
+    except Exception as e:
+        print(f"[jira_service] upload_attachment failed: {e}")
+        return False
+
+
+async def create_ticket_full(
+    project_key: str,
+    title: str,
+    raw_content: str,
+    root_cause: Optional[str],
+    solution_hint: Optional[str],
+    acceptance_criteria: Optional[str],
+    assignee_account_id: Optional[str] = None,
+    epic_key: str = "GB-488",
+    sprint_id: Optional[int] = None,
+    issue_type: str = "Story",
+) -> dict:
+    """Create a Jira ticket with full ADF description, epic link, sprint, and assignee."""
+    settings = get_settings()
+    if not settings.jira_domain or not settings.jira_email or not settings.jira_api_token:
+        raise ValueError("Jira credentials not configured")
+
+    sections = [
+        ("Nội dung gốc", raw_content or ""),
+        ("Kết quả phân tích", root_cause or ""),
+        ("Hướng giải quyết", solution_hint or ""),
+        ("Acceptance Criteria", acceptance_criteria or ""),
+    ]
+    description_adf = _build_adf_document(sections)
+
+    fields: dict = {
+        "project": {"key": project_key},
+        "summary": title,
+        "description": description_adf,
+        "issuetype": {"name": issue_type},
+        "customfield_10014": epic_key,
+    }
+    if assignee_account_id:
+        fields["assignee"] = {"accountId": assignee_account_id}
+    if sprint_id:
+        fields["customfield_10020"] = sprint_id
+
+    url = f"https://{settings.jira_domain}/rest/api/3/issue"
+    async with httpx.AsyncClient(timeout=15) as client:
+        r = await client.post(url, json={"fields": fields}, headers=_auth_header())
+    r.raise_for_status()
+    data = r.json()
+    return {"key": data["key"], "url": f"https://{settings.jira_domain}/browse/{data['key']}"}
+
+
 def _extract_adf_text(adf: dict | str) -> str:
     """Extract plain text from Atlassian Document Format (ADF) or plain string."""
     if isinstance(adf, str):
