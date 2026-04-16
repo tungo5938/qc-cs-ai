@@ -77,7 +77,7 @@ export const api = {
   // ── PM Tool ─────────────────────────────────────────────────────────────────
   priorityConfig: {
     get: () => request<any>("/api/priority-config"),
-    update: (body: { user_rating_weight: number; ai_rating_weight: number; tech_rating_weight: number }) =>
+    update: (body: { user_rating_weight: number; po_rating_weight: number; dev_rating_weight: number }) =>
       request<any>("/api/priority-config", { method: "PUT", body: JSON.stringify(body) }),
   },
   feedbacks: {
@@ -97,6 +97,16 @@ export const api = {
         `/api/feedbacks/sync-sheet?product_id=${productId}`,
         { method: "POST" }
       ),
+    update: (id: string, body: { title?: string; raw_content?: string }) =>
+      request<any>(`/api/feedbacks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    updateAnalysis: (id: string, body: { root_cause?: string; solution_hint?: string }) =>
+      request<any>(`/api/feedbacks/${id}/analysis`, { method: "PATCH", body: JSON.stringify(body) }),
+    generateSolution: (id: string) =>
+      request<any>(`/api/feedbacks/${id}/generate-solution`, { method: "POST" }),
+    generateAC: (id: string) =>
+      request<{ acceptance_criteria: string }>(`/api/feedbacks/${id}/generate-ac`, { method: "POST" }),
+    createJira: (id: string, body: { title: string; raw_content: string; root_cause?: string; solution_hint?: string; acceptance_criteria: string; sprint_name?: string; upload_attachments?: boolean }) =>
+      request<{ key: string; url: string }>(`/api/feedbacks/${id}/create-jira`, { method: "POST", body: JSON.stringify(body) }),
   },
   solutions: {
     list: (params?: { product_id?: string; status?: string }) => {
@@ -120,6 +130,18 @@ export const api = {
     chat: (id: string, message: string, jiraTickets: any[]) =>
       request<any>(`/api/solutions/${id}/chat`, { method: "POST", body: JSON.stringify({ message, jira_tickets: jiraTickets }) }),
   },
+  feedbackRating: {
+    rate: (id: string, body: { user_priority?: number; tu_danh_gia?: number; tech_rating?: number }) =>
+      request<any>(`/api/feedbacks/${id}/rate`, { method: "PATCH", body: JSON.stringify(body) }),
+    exportUrl: (params: { product_id?: string; status?: string; feedback_type?: string; fields: string }) => {
+      const qs = new URLSearchParams();
+      if (params.product_id) qs.set("product_id", params.product_id);
+      if (params.status) qs.set("status", params.status);
+      if (params.feedback_type) qs.set("feedback_type", params.feedback_type);
+      qs.set("fields", params.fields);
+      return `/proxy/api/feedbacks/export?${qs}`;
+    },
+  },
   jira: {
     getEpicTickets: (epicKey: string) => request<any[]>(`/api/jira/epic/${epicKey}/tickets`),
     createTicket: (data: { project_key: string; title: string; description: string; issue_type?: string }) =>
@@ -141,6 +163,7 @@ export const api = {
     addNote: (id: string, content: string) =>
       request<any>(`/api/meetings/${id}/notes`, { method: "POST", body: JSON.stringify({ content }) }),
     finish: (id: string) => request<any>(`/api/meetings/${id}/finish`, { method: "POST" }),
+    extractActions: (id: string) => request<any>(`/api/meetings/${id}/extract-actions`, { method: "POST" }),
   },
   actionItems: {
     list: (params?: { product_id?: string; status?: string; assignee?: string }) => {

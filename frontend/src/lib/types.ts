@@ -98,7 +98,7 @@ export type MeetingStatus = "upcoming" | "in_progress" | "done";
 
 export type MeetingType = "weekly_review" | "sprint_planning" | "incident" | "stakeholder" | "other";
 
-export type ActionStatus = "todo" | "in_progress" | "done" | "cancelled";
+export type ActionStatus = "todo" | "confirmed" | "in_progress" | "done" | "cancelled";
 
 export type ImpactLevel = "low" | "medium" | "high";
 
@@ -107,18 +107,27 @@ export interface FeedbackAnalysis {
   impact_level: ImpactLevel;
   affected_area: string;
   kb_references: string[];
+  solution_hint?: string | null;
+  acceptance_criteria?: string | null;
+}
+
+export interface JiraDraft {
+  title: string;
+  acceptance_criteria: string;
+  sprint_name: string;
 }
 
 export interface PriorityConfig {
   user_rating_weight: number;
-  ai_rating_weight: number;
-  tech_rating_weight: number;
+  po_rating_weight: number;
+  dev_rating_weight: number;
 }
 
 export interface Feedback {
   id: string;
   product_id: string;
   product_name?: string;
+  title?: string | null;
   feedback_type?: FeedbackType | null;
   source: FeedbackSource;
   status: FeedbackStatus;
@@ -181,10 +190,12 @@ export interface ActionItem {
   product_name?: string;
   meeting_id?: string | null;
   meeting_name?: string | null;
+  source_meeting_id?: string | null;
   title: string;
-  assignee: string;
+  assignee?: string | null;
   status: ActionStatus;
   deadline?: string | null;
+  output_url?: string | null;
   created_at: string;
   updated_at?: string;
 }
