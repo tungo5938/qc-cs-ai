@@ -1,40 +1,93 @@
 from __future__ import annotations
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+import io
 
 from core.database import get_db
 from models.feedback import Feedback
 from models.feedback_analysis import FeedbackAnalysis
 from models.product import Product
+from models.priority_config import PriorityConfig
 from models.base import gen_uuid
-from schemas.feedback import FeedbackOut, FeedbackCreate, FeedbackUpdate
+from pydantic import BaseModel
+from schemas.feedback import FeedbackOut, FeedbackCreate, FeedbackUpdate, AnalysisUpdate, CreateJiraBody
 from services import ai_service
 from services import gsheet_service
 
 router = APIRouter(prefix="/feedbacks", tags=["feedbacks"])
 
+# ── Type keywords ────────────────────────────────────────────────────────────
+
+_BUG_KEYWORDS = [
+    "bug", "lỗi", "loi", "error", "crash", "broken", "sập", "không hoạt động",
+    "không chạy", "không load", "fail", "failed", "issue", "problem", "defect",
+]
+_FEATURE_KEYWORDS = [
+    "feature", "tính năng", "tinh nang", "thêm", "them", "cải thiện", "cai thien",
+    "improve", "improvement", "enhancement", "request", "yêu cầu", "yeu cau",
+    "đề xuất", "de xuat", "mong muốn", "wish",
+]
+
+
+def _classify_type(content: str) -> str:
+    text = content.lower()
+    if any(kw in text for kw in _BUG_KEYWORDS):
+        return "bug"
+    if any(kw in text for kw in _FEATURE_KEYWORDS):
+        return "feature"
+    return "unclear"
+
+
+# ── Priority helpers ─────────────────────────────────────────────────────────
+
+def _impact_to_score(impact_level: Optional[str]) -> Optional[int]:
+    """Convert impact_level string to numeric score 1-10."""
+    return {"high": 8, "medium": 5, "low": 2}.get(impact_level or "", None)
+
+
+async def _get_weights(db: AsyncSession) -> tuple[float, float, float]:
+    """Return (user_w, ai_w, tech_w) from DB config, falling back to defaults."""
+    cfg = await db.get(PriorityConfig, "default")
+    if cfg:
+        return cfg.user_rating_weight, cfg.po_rating_weight, cfg.dev_rating_weight
+    return 0.4, 0.4, 0.2
+
+
+def _compute_priority_score(
+    user_priority: Optional[int],
+    tu_danh_gia: Optional[int],
+    tech_rating: Optional[int],
+    weights: tuple[float, float, float],
+) -> Optional[float]:
+    """
+    Weighted average of available scores (skip None values).
+    All inputs on scale 1-10. tech_rating: higher = easier (positive contribution).
+    """
+    user_w, ai_w, tech_w = weights
+    named = [
+        (user_w, user_priority),
+        (ai_w, tu_danh_gia),
+        (tech_w, tech_rating),
+    ]
+    available = [(w, v) for w, v in named if v is not None]
+    if not available:
+        return None
+    total_w = sum(w for w, _ in available)
+    weighted_sum = sum(w * v for w, v in available)
+    return round(weighted_sum / total_w, 1)
+
+
+# ── Analysis pipeline ────────────────────────────────────────────────────────
 
 async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedback:
-    """
-    Full analysis pipeline:
-    1. Set status=analyzing
-    2. Call AI analysis
-    3. Create/update FeedbackAnalysis
-    4. Set status=analyzed
-    5. Generate solution draft placeholder
-    6. Set status=solution_drafted
-    """
-    # Step 1: mark as analyzing
     feedback.status = "analyzing"
     await db.flush()
 
-    # Resolve product name for context
-    product_name = ""
-    product_goal = ""
-    kb_text = ""
+    product_name = product_goal = kb_text = ""
     if feedback.product_id:
         product = await db.get(Product, feedback.product_id)
         if product:
@@ -42,7 +95,6 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
             product_goal = product.product_goal or ""
             kb_text = product.kb_text or ""
 
-    # Step 2: AI analysis
     try:
         analysis_data = await ai_service.analyze_feedback(
             content=feedback.raw_content,
@@ -61,11 +113,10 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
             "error": str(e),
         }
 
-    # Step 3: Create or update FeedbackAnalysis
-    existing_analysis_result = await db.execute(
+    existing_result = await db.execute(
         select(FeedbackAnalysis).where(FeedbackAnalysis.feedback_id == feedback.id)
     )
-    existing_analysis = existing_analysis_result.scalar_one_or_none()
+    existing_analysis = existing_result.scalar_one_or_none()
 
     if existing_analysis:
         existing_analysis.root_cause = analysis_data.get("root_cause")
@@ -74,7 +125,7 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
         existing_analysis.kb_references = analysis_data.get("kb_references", [])
         existing_analysis.ai_raw = analysis_data
     else:
-        new_analysis = FeedbackAnalysis(
+        db.add(FeedbackAnalysis(
             id=gen_uuid(),
             feedback_id=feedback.id,
             root_cause=analysis_data.get("root_cause"),
@@ -82,16 +133,21 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
             affected_area=analysis_data.get("affected_area"),
             kb_references=analysis_data.get("kb_references", []),
             ai_raw=analysis_data,
-        )
-        db.add(new_analysis)
+        ))
 
-    # Step 4: set status=analyzed
     feedback.status = "analyzed"
     await db.flush()
 
-    # Step 5 & 6: try to create solution draft
+    tu_danh_gia = _impact_to_score(analysis_data.get("impact_level"))
+    feedback.tu_danh_gia = tu_danh_gia
+
+    weights = await _get_weights(db)
+    feedback.priority_score = _compute_priority_score(
+        feedback.user_priority, tu_danh_gia, feedback.tech_rating, weights
+    )
+    await db.flush()
+
     try:
-        # Import SolutionDraft lazily — Task 4 will create it properly
         from models.solution_draft import SolutionDraft  # noqa: F401
 
         draft_data = await ai_service.generate_solution_draft(
@@ -99,8 +155,7 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
             analysis=analysis_data,
             product_name=product_name,
         )
-
-        draft = SolutionDraft(
+        db.add(SolutionDraft(
             id=gen_uuid(),
             feedback_id=feedback.id,
             product_id=feedback.product_id,
@@ -110,12 +165,10 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
             effort_estimate=draft_data.get("effort_estimate", "M"),
             open_questions=draft_data.get("open_questions", ""),
             status="draft",
-        )
-        db.add(draft)
+        ))
         feedback.status = "solution_drafted"
         await db.flush()
     except ImportError:
-        # SolutionDraft model not yet created (Task 4) — skip
         pass
     except Exception as e:
         print(f"[FeedbackPipeline] generate_solution_draft failed: {e}")
@@ -123,10 +176,28 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
     return feedback
 
 
+async def _background_analyze(feedback_id: str) -> None:
+    """Run full analysis pipeline in a background task after creation."""
+    from core.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(
+            select(Feedback)
+            .options(selectinload(Feedback.analysis))
+            .where(Feedback.id == feedback_id)
+        )
+        feedback = result.scalar_one_or_none()
+        if feedback and feedback.status == "new":
+            await _run_analysis_pipeline(db, feedback)
+            await db.commit()
+
+
+# ── Routes ───────────────────────────────────────────────────────────────────
+
 @router.get("")
 async def list_feedbacks(
     product_id: Optional[str] = None,
     status: Optional[str] = None,
+    feedback_type: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(Feedback).options(selectinload(Feedback.analysis))
@@ -134,6 +205,8 @@ async def list_feedbacks(
         query = query.where(Feedback.product_id == product_id)
     if status:
         query = query.where(Feedback.status == status)
+    if feedback_type:
+        query = query.where(Feedback.feedback_type == feedback_type)
     query = query.order_by(Feedback.created_at.desc())
     result = await db.execute(query)
     feedbacks = result.scalars().all()
@@ -143,26 +216,46 @@ async def list_feedbacks(
 @router.post("", status_code=201)
 async def create_feedback(
     body: FeedbackCreate,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify product exists
     product = await db.get(Product, body.product_id)
     if not product:
         raise HTTPException(404, "Product not found")
 
+    title = await ai_service.generate_feedback_title(body.raw_content)
+
     feedback = Feedback(
         id=gen_uuid(),
         product_id=body.product_id,
+        title=title or None,
         raw_content=body.raw_content,
         media_urls=body.media_urls,
         submitted_by=body.submitted_by,
         source="manual",
         status="new",
+        feedback_type=_classify_type(body.raw_content),
     )
     db.add(feedback)
     await db.flush()
     await db.commit()
-    return {"id": feedback.id, "status": feedback.status}
+
+    # Auto-trigger AI analysis in background
+    background_tasks.add_task(_background_analyze, feedback.id)
+
+    return {"id": feedback.id, "status": feedback.status, "feedback_type": feedback.feedback_type}
+
+
+@router.get("/export")
+async def export_feedbacks_proxy(
+    product_id: Optional[str] = None,
+    status: Optional[str] = None,
+    feedback_type: Optional[str] = None,
+    fields: str = "basic,content,ratings",
+    db: AsyncSession = Depends(get_db),
+):
+    """Proxy to the real export handler — defined here to take priority over /{feedback_id}."""
+    return await _export_feedbacks(product_id, status, feedback_type, fields, db)
 
 
 @router.get("/{feedback_id}")
@@ -198,7 +291,6 @@ async def analyze_feedback(
     feedback = await _run_analysis_pipeline(db, feedback)
     await db.commit()
 
-    # Reload with analysis relationship
     result = await db.execute(
         select(Feedback)
         .options(selectinload(Feedback.analysis))
@@ -208,16 +300,171 @@ async def analyze_feedback(
     return FeedbackOut.model_validate(feedback).model_dump()
 
 
+class RateBody(BaseModel):
+    user_priority: Optional[int] = None   # User rating 1-10
+    tu_danh_gia: Optional[int] = None     # PO rating 1-10
+    tech_rating: Optional[int] = None     # Dev rating 1-10 (1=lowest effort)
+
+
+@router.patch("/{feedback_id}/rate")
+async def rate_feedback(
+    feedback_id: str,
+    body: RateBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Allow any user to set/update ratings and recompute priority score."""
+    result = await db.execute(
+        select(Feedback).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+
+    if body.user_priority is not None:
+        if not (1 <= body.user_priority <= 10):
+            raise HTTPException(400, "user_priority phải từ 1-10")
+        feedback.user_priority = body.user_priority
+    if body.tu_danh_gia is not None:
+        if not (1 <= body.tu_danh_gia <= 10):
+            raise HTTPException(400, "tu_danh_gia phải từ 1-10")
+        feedback.tu_danh_gia = body.tu_danh_gia
+    if body.tech_rating is not None:
+        if not (1 <= body.tech_rating <= 10):
+            raise HTTPException(400, "tech_rating phải từ 1-10")
+        feedback.tech_rating = body.tech_rating
+
+    weights = await _get_weights(db)
+    feedback.priority_score = _compute_priority_score(
+        feedback.user_priority, feedback.tu_danh_gia, feedback.tech_rating, weights
+    )
+    await db.commit()
+
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    return FeedbackOut.model_validate(feedback).model_dump()
+
+
+async def _export_feedbacks(
+    product_id: Optional[str] = None,
+    status: Optional[str] = None,
+    feedback_type: Optional[str] = None,
+    fields: str = "basic,content,ratings",
+    db: AsyncSession = None,
+):
+    """Export feedbacks to Excel. fields groups: basic,content,analysis,ratings,solution"""
+    try:
+        import openpyxl
+    except ImportError:
+        raise HTTPException(500, "openpyxl not installed")
+
+    query = (
+        select(Feedback)
+        .options(selectinload(Feedback.analysis), selectinload(Feedback.product))
+    )
+    if product_id:
+        query = query.where(Feedback.product_id == product_id)
+    if status:
+        query = query.where(Feedback.status == status)
+    if feedback_type:
+        query = query.where(Feedback.feedback_type == feedback_type)
+    query = query.order_by(Feedback.created_at.desc())
+    result = await db.execute(query)
+    feedbacks = result.scalars().all()
+
+    field_groups = {g.strip() for g in fields.split(",")}
+
+    # Build column list
+    columns: list[tuple[str, callable]] = []
+
+    if "basic" in field_groups:
+        columns += [
+            ("ID", lambda f: f.id),
+            ("Ngày tạo", lambda f: f.created_at.strftime("%d/%m/%Y %H:%M") if f.created_at else ""),
+            ("Sản phẩm", lambda f: f.product.name if f.product else ""),
+            ("Nguồn", lambda f: f.source or ""),
+            ("Loại", lambda f: f.feedback_type or ""),
+            ("Trạng thái", lambda f: f.status or ""),
+        ]
+    if "content" in field_groups:
+        columns += [
+            ("Nội dung feedback", lambda f: f.raw_content or ""),
+            ("Người gửi", lambda f: f.submitted_by or ""),
+        ]
+    if "ratings" in field_groups:
+        columns += [
+            ("User Rating (1-10)", lambda f: f.user_priority if f.user_priority is not None else ""),
+            ("PO Rating (1-10)", lambda f: f.tu_danh_gia if f.tu_danh_gia is not None else ""),
+            ("Dev Rating/Effort (1-10)", lambda f: f.tech_rating if f.tech_rating is not None else ""),
+            ("Priority Score", lambda f: f.priority_score if f.priority_score is not None else ""),
+        ]
+    if "analysis" in field_groups:
+        columns += [
+            ("Nguyên nhân gốc rễ", lambda f: (f.analysis.root_cause or "") if f.analysis else ""),
+            ("Mức độ ảnh hưởng", lambda f: (f.analysis.impact_level or "") if f.analysis else ""),
+            ("Khu vực ảnh hưởng", lambda f: (f.analysis.affected_area or "") if f.analysis else ""),
+            ("KB tham chiếu", lambda f: ", ".join(f.analysis.kb_references or []) if f.analysis else ""),
+        ]
+    if "solution" in field_groups:
+        from models.solution_draft import SolutionDraft
+        # Fetch solution drafts for these feedback IDs
+        fb_ids = [f.id for f in feedbacks]
+        sol_result = await db.execute(
+            select(SolutionDraft).where(SolutionDraft.feedback_id.in_(fb_ids))
+        )
+        sol_map: dict[str, SolutionDraft] = {s.feedback_id: s for s in sol_result.scalars().all()}
+        columns += [
+            ("Solution ID", lambda f: sol_map.get(f.id, None) and sol_map[f.id].id or ""),
+            ("Solution Status", lambda f: sol_map.get(f.id, None) and sol_map[f.id].status or ""),
+            ("Problem Statement", lambda f: sol_map.get(f.id, None) and (sol_map[f.id].problem_statement or "") or ""),
+        ]
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Feedbacks"
+
+    # Header row
+    header_font = openpyxl.styles.Font(bold=True)
+    header_fill = openpyxl.styles.PatternFill("solid", fgColor="E8F0FE")
+    for col_idx, (header, _) in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=col_idx, value=header)
+        cell.font = header_font
+        cell.fill = header_fill
+
+    # Data rows
+    for row_idx, fb in enumerate(feedbacks, 2):
+        for col_idx, (_, getter) in enumerate(columns, 1):
+            try:
+                ws.cell(row=row_idx, column=col_idx, value=getter(fb))
+            except Exception:
+                ws.cell(row=row_idx, column=col_idx, value="")
+
+    # Auto column width
+    for col in ws.columns:
+        max_len = max((len(str(cell.value or "")) for cell in col), default=10)
+        ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 60)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=feedbacks.xlsx"},
+    )
+
+
 @router.post("/sync-sheet")
 async def sync_sheet(
     product_id: str,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """
     Sync feedback from the product's Google Sheet.
-    Deduplicates by gsheet_row_index.
-    Auto-generates AI rating (tu_danh_gia) as 1-10 based on impact_level.
-    Returns counts: imported, skipped.
+    Deduplicates by gsheet_row_index. Auto-classifies type. Queues AI analysis.
     """
     product = await db.get(Product, product_id)
     if not product:
@@ -227,13 +474,11 @@ async def sync_sheet(
     if not sheet_url:
         raise HTTPException(400, "Product has no google_sheet_url configured")
 
-    # Fetch sheet rows
     try:
         rows = await gsheet_service.fetch_sheet_rows(sheet_url)
     except Exception as e:
         raise HTTPException(502, f"Failed to fetch sheet: {e}")
 
-    # Get already-imported row indices for this product
     from sqlalchemy import and_
     existing_result = await db.execute(
         select(Feedback.gsheet_row_index).where(
@@ -247,15 +492,18 @@ async def sync_sheet(
 
     imported = 0
     skipped = 0
+    new_ids = []
 
     for row in rows:
         if row["row_index"] in existing_indices:
             skipped += 1
             continue
 
+        row_title = await ai_service.generate_feedback_title(row["content"])
         feedback = Feedback(
             id=gen_uuid(),
             product_id=product_id,
+            title=row_title or None,
             raw_content=row["content"],
             submitted_by="gsheet",
             source="gsheet",
@@ -263,11 +511,191 @@ async def sync_sheet(
             gsheet_row_index=row["row_index"],
             user_priority=row["user_priority"],
             tech_rating=row["tech_rating"],
+            feedback_type=_classify_type(row["content"]),
         )
         db.add(feedback)
         await db.flush()
+        new_ids.append(feedback.id)
         imported += 1
 
     await db.commit()
 
+    for fid in new_ids:
+        background_tasks.add_task(_background_analyze, fid)
+
     return {"imported": imported, "skipped": skipped, "total_rows": len(rows)}
+
+
+@router.patch("/{feedback_id}")
+async def update_feedback(
+    feedback_id: str,
+    body: FeedbackUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit title and/or raw_content of a feedback."""
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+    if body.title is not None:
+        feedback.title = body.title
+    if body.raw_content is not None:
+        feedback.raw_content = body.raw_content
+    if body.status is not None:
+        feedback.status = body.status
+    await db.commit()
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    return FeedbackOut.model_validate(feedback).model_dump()
+
+
+@router.patch("/{feedback_id}/analysis")
+async def update_analysis(
+    feedback_id: str,
+    body: AnalysisUpdate,
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit root_cause and/or solution_hint in FeedbackAnalysis."""
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+    if not feedback.analysis:
+        raise HTTPException(404, "Analysis not found — run analyze first")
+    if body.root_cause is not None:
+        feedback.analysis.root_cause = body.root_cause
+    if body.solution_hint is not None:
+        feedback.analysis.solution_hint = body.solution_hint
+    await db.commit()
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    return FeedbackOut.model_validate(feedback).model_dump()
+
+
+@router.post("/{feedback_id}/generate-solution")
+async def generate_solution(
+    feedback_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """AI-generate solution_hint and save to FeedbackAnalysis."""
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+
+    product_name = product_goal = ""
+    if feedback.product_id:
+        product = await db.get(Product, feedback.product_id)
+        if product:
+            product_name = product.name
+            product_goal = product.product_goal or ""
+
+    root_cause = feedback.analysis.root_cause if feedback.analysis else None
+    impact_level = feedback.analysis.impact_level if feedback.analysis else None
+    affected_area = feedback.analysis.affected_area if feedback.analysis else None
+
+    try:
+        hint = await ai_service.generate_solution_hint(
+            raw_content=feedback.raw_content,
+            root_cause=root_cause,
+            impact_level=impact_level,
+            affected_area=affected_area,
+            product_name=product_name,
+            product_goal=product_goal,
+        )
+    except Exception as e:
+        raise HTTPException(502, f"AI service error: {e}")
+
+    if feedback.analysis:
+        feedback.analysis.solution_hint = hint
+    else:
+        db.add(FeedbackAnalysis(
+            id=gen_uuid(),
+            feedback_id=feedback.id,
+            solution_hint=hint,
+        ))
+
+    await db.commit()
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    return FeedbackOut.model_validate(feedback).model_dump()
+
+
+@router.post("/{feedback_id}/generate-ac")
+async def generate_ac(
+    feedback_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """AI-generate acceptance criteria from solution_hint. Returns plain text, does NOT save to DB."""
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+    solution_hint = (feedback.analysis.solution_hint if feedback.analysis else None) or ""
+    if not solution_hint:
+        raise HTTPException(400, "solution_hint is empty — generate solution first")
+    try:
+        ac = await ai_service.generate_acceptance_criteria(solution_hint)
+    except Exception as e:
+        raise HTTPException(502, f"AI service error: {e}")
+    return {"acceptance_criteria": ac}
+
+
+@router.post("/{feedback_id}/create-jira")
+async def create_jira_ticket(
+    feedback_id: str,
+    body: CreateJiraBody,
+    db: AsyncSession = Depends(get_db),
+):
+    """Create a Jira ticket from feedback data. Uploads attachments if requested."""
+    from services import jira_service
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+
+    assignee_id = await jira_service.lookup_user_account_id("tunm1@ghn.vn")
+
+    sprint_id = None
+    if body.sprint_name:
+        sprint_id = await jira_service.lookup_sprint_id(board_id=18, sprint_name=body.sprint_name)
+
+    try:
+        ticket = await jira_service.create_ticket_full(
+            project_key="GB",
+            title=body.title,
+            raw_content=body.raw_content,
+            root_cause=body.root_cause,
+            solution_hint=body.solution_hint,
+            acceptance_criteria=body.acceptance_criteria,
+            assignee_account_id=assignee_id,
+            epic_key="GB-488",
+            sprint_id=sprint_id,
+            issue_type="Story",
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(502, f"Jira API error: {e}")
+
+    if body.upload_attachments and feedback.media_urls:
+        for url in feedback.media_urls:
+            await jira_service.upload_attachment(ticket["key"], url)
+
+    return ticket
