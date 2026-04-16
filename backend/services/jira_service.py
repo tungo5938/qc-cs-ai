@@ -126,21 +126,22 @@ def _build_adf_document(sections: list[tuple[str, str]]) -> dict:
     """Build Atlassian Document Format doc from (heading, body) tuples."""
     content = []
     for heading, body in sections:
+        if not body:
+            continue
         if heading:
             content.append({
                 "type": "heading",
                 "attrs": {"level": 2},
                 "content": [{"type": "text", "text": heading}]
             })
-        if body:
-            for paragraph in body.split("\n"):
-                paragraph = paragraph.strip()
-                if not paragraph:
-                    continue
-                content.append({
-                    "type": "paragraph",
-                    "content": [{"type": "text", "text": paragraph}]
-                })
+        for paragraph in body.split("\n"):
+            paragraph = paragraph.strip()
+            if not paragraph:
+                continue
+            content.append({
+                "type": "paragraph",
+                "content": [{"type": "text", "text": paragraph}]
+            })
     return {"type": "doc", "version": 1, "content": content}
 
 
@@ -199,7 +200,7 @@ async def upload_attachment(ticket_key: str, image_url: str) -> bool:
                 headers=auth_header,
                 files={"file": (filename, img_resp.content, content_type)},
             )
-        return r.status_code == 200
+            return r.status_code == 200
     except Exception as e:
         print(f"[jira_service] upload_attachment failed: {e}")
         return False

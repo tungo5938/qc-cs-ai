@@ -455,8 +455,8 @@ async def generate_solution_hint(
             ],
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Lỗi khi tạo hướng giải quyết: {e}"
+    except Exception:
+        raise
 
 
 async def generate_acceptance_criteria(solution_hint: str) -> str:
@@ -471,8 +471,8 @@ async def generate_acceptance_criteria(solution_hint: str) -> str:
             ],
         )
         return response.choices[0].message.content.strip()
-    except Exception as e:
-        return f"Lỗi khi tạo AC: {e}"
+    except Exception:
+        raise
 
 
 async def generate_solution_draft(feedback_content: str, analysis: dict, product_name: str) -> dict:
