@@ -22,6 +22,8 @@ class FeedbackAnalysis(Base):
     affected_area: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # 'ui' | 'logic' | 'performance' | 'integration' | 'other'
     kb_references: Mapped[Optional[list]] = mapped_column(JSONB, nullable=True)  # list of str
     ai_raw: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    solution_hint: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    acceptance_criteria: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
