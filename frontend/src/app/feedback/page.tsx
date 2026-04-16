@@ -350,9 +350,19 @@ function JiraPreviewPanel({
         />
       </div>
 
+      <div>
+        <p className="text-xs font-medium text-gray-500 mb-1">Epic (tuỳ chọn)</p>
+        <input
+          type="text"
+          value={draft.epic_key ?? ""}
+          onChange={e => onChange({ epic_key: e.target.value })}
+          placeholder="e.g. GB-100"
+          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+        />
+      </div>
+
       <div className="bg-gray-50 rounded-lg p-3 space-y-1 text-xs text-gray-500">
         <p><span className="font-medium">Assignee:</span> tunm1@ghn.vn</p>
-        <p><span className="font-medium">Epic:</span> GB-488</p>
         <p><span className="font-medium">Project:</span> GB</p>
         <p><span className="font-medium">Type:</span> Story</p>
       </div>
@@ -394,7 +404,7 @@ function FeedbackDetailModal({
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
   const [generatingSolution, setGeneratingSolution] = useState(false);
   const [showJiraPanel, setShowJiraPanel] = useState(false);
-  const [jiraDraft, setJiraDraft] = useState<{ title: string; acceptance_criteria: string; sprint_name: string } | null>(null);
+  const [jiraDraft, setJiraDraft] = useState<{ title: string; acceptance_criteria: string; sprint_name: string; epic_key?: string } | null>(null);
   const [preparingJira, setPreparingJira] = useState(false);
   const [creatingJira, setCreatingJira] = useState(false);
   const [jiraResult, setJiraResult] = useState<{ key: string; url: string } | null>(null);
@@ -513,6 +523,7 @@ function FeedbackDetailModal({
         solution_hint: fb.analysis?.solution_hint ?? undefined,
         acceptance_criteria: jiraDraft.acceptance_criteria,
         sprint_name: jiraDraft.sprint_name || undefined,
+        epic_key: jiraDraft.epic_key || undefined,
         upload_attachments: true,
       });
       setJiraResult(result);

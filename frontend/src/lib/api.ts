@@ -105,7 +105,7 @@ export const api = {
       request<any>(`/api/feedbacks/${id}/generate-solution`, { method: "POST" }),
     generateAC: (id: string) =>
       request<{ acceptance_criteria: string }>(`/api/feedbacks/${id}/generate-ac`, { method: "POST" }),
-    createJira: (id: string, body: { title: string; raw_content: string; root_cause?: string; solution_hint?: string; acceptance_criteria: string; sprint_name?: string; upload_attachments?: boolean }) =>
+    createJira: (id: string, body: { title: string; raw_content: string; root_cause?: string; solution_hint?: string; acceptance_criteria: string; sprint_name?: string; epic_key?: string; upload_attachments?: boolean }) =>
       request<{ key: string; url: string }>(`/api/feedbacks/${id}/create-jira`, { method: "POST", body: JSON.stringify(body) }),
   },
   solutions: {

@@ -71,4 +71,5 @@ class CreateJiraBody(BaseModel):
     solution_hint: Optional[str] = None
     acceptance_criteria: str
     sprint_name: Optional[str] = None
+    epic_key: Optional[str] = None
     upload_attachments: bool = True

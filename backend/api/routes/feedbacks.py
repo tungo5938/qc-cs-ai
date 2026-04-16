@@ -685,7 +685,7 @@ async def create_jira_ticket(
             solution_hint=body.solution_hint,
             acceptance_criteria=body.acceptance_criteria,
             assignee_account_id=assignee_id,
-            epic_key="GB-488",
+            epic_key=body.epic_key or "",
             sprint_id=sprint_id,
             issue_type="Story",
         )

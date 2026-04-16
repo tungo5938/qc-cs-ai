@@ -214,7 +214,7 @@ async def create_ticket_full(
     solution_hint: Optional[str],
     acceptance_criteria: Optional[str],
     assignee_account_id: Optional[str] = None,
-    epic_key: str = "GB-488",
+    epic_key: str = "",
     sprint_id: Optional[int] = None,
     issue_type: str = "Story",
 ) -> dict:
@@ -236,8 +236,9 @@ async def create_ticket_full(
         "summary": title,
         "description": description_adf,
         "issuetype": {"name": issue_type},
-        "customfield_10014": epic_key,
     }
+    if epic_key:
+        fields["parent"] = {"key": epic_key}
     if assignee_account_id:
         fields["assignee"] = {"accountId": assignee_account_id}
     if sprint_id:
