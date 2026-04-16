@@ -696,6 +696,9 @@ async def create_jira_ticket(
 
     if body.upload_attachments and feedback.media_urls:
         for url in feedback.media_urls:
-            await jira_service.upload_attachment(ticket["key"], url)
+            try:
+                await jira_service.upload_attachment(ticket["key"], url)
+            except Exception as e:
+                print(f"[create_jira_ticket] attachment upload failed for {url}: {e}")
 
     return ticket
