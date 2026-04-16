@@ -143,6 +143,30 @@ async def classify_with_context(
     return result
 
 
+async def generate_feedback_title(raw_content: str) -> str:
+    """Generate a short Vietnamese title (≤80 chars) summarising the feedback issue."""
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o-mini",
+            max_tokens=60,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Bạn tóm tắt vấn đề phản hồi thành một tiêu đề ngắn bằng tiếng Việt, "
+                        "tối đa 80 ký tự, không dấu chấm cuối, không viết hoa toàn bộ. "
+                        "Chỉ trả về tiêu đề, không giải thích gì thêm."
+                    ),
+                },
+                {"role": "user", "content": raw_content[:1000]},
+            ],
+        )
+        title = response.choices[0].message.content.strip().strip('"').strip("'")
+        return title[:200]
+    except Exception:
+        return ""
+
+
 async def generate_kb_summary(raw_content: str) -> str:
     response = await get_client().chat.completions.create(
         model="gpt-4o",
@@ -396,6 +420,59 @@ Respond ONLY with valid JSON in this format:
         temperature=0.3,
     )
     return _parse_json_response(response.choices[0].message.content)
+
+
+GENERATE_SOLUTION_HINT_SYSTEM = """Bạn là AI hỗ trợ PM tại GHN đề xuất hướng giải quyết cho feedback sản phẩm.
+Dựa trên thông tin feedback và phân tích, đề xuất hướng giải quyết ngắn gọn, thực tế, bằng tiếng Việt.
+Tối đa 300 ký tự. Chỉ trả về nội dung hướng giải quyết, không giải thích thêm."""
+
+GENERATE_AC_SYSTEM = """Bạn là AI hỗ trợ PM tại GHN viết Acceptance Criteria (AC) cho Jira ticket.
+Dựa trên hướng giải quyết được cung cấp, tạo danh sách AC rõ ràng, kiểm thử được, bằng tiếng Việt.
+Định dạng: mỗi AC một dòng bắt đầu bằng "- ".
+Tối đa 5 AC. Chỉ trả về danh sách AC, không giải thích thêm."""
+
+
+async def generate_solution_hint(
+    raw_content: str,
+    root_cause: Optional[str],
+    impact_level: Optional[str],
+    affected_area: Optional[str],
+    product_name: str = "",
+    product_goal: str = "",
+) -> str:
+    """Generate solution hint using GPT-4o. Returns plain text."""
+    system = GENERATE_SOLUTION_HINT_SYSTEM
+    if product_goal:
+        system = f"Mục tiêu sản phẩm: {product_goal}\n\n" + system
+    user_prompt = f"Sản phẩm: {product_name}\n\nFeedback: {raw_content}\n\nNguyên nhân: {root_cause or 'chưa xác định'}\nMức độ: {impact_level or 'medium'}\nKhu vực: {affected_area or 'other'}"
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=256,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Lỗi khi tạo hướng giải quyết: {e}"
+
+
+async def generate_acceptance_criteria(solution_hint: str) -> str:
+    """Generate acceptance criteria from solution hint using GPT-4o. Returns plain text list."""
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=512,
+            messages=[
+                {"role": "system", "content": GENERATE_AC_SYSTEM},
+                {"role": "user", "content": f"Hướng giải quyết: {solution_hint}"},
+            ],
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"Lỗi khi tạo AC: {e}"
 
 
 async def generate_solution_draft(feedback_content: str, analysis: dict, product_name: str) -> dict:
