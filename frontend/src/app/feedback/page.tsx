@@ -593,11 +593,22 @@ function FeedbackDetailModal({
 
               {/* LEFT: content + ratings + analysis */}
               <div className={`overflow-y-auto p-5 space-y-4 ${hasImages ? "w-[42%] border-r border-gray-100" : "w-full"}`}>
-                {/* Raw content */}
-                <div>
-                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">Nội dung gốc</p>
-                  <p className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{fb.raw_content}</p>
-                </div>
+                {/* Title inline edit */}
+                {fb.title && (
+                  <InlineTextEdit
+                    label="Tiêu đề"
+                    value={fb.title}
+                    onSave={saveTitle}
+                  />
+                )}
+
+                {/* Raw content inline edit */}
+                <InlineTextEdit
+                  label="Nội dung gốc"
+                  value={fb.raw_content}
+                  onSave={saveRawContent}
+                  multiline
+                />
 
                 {/* Ratings — always-visible inputs */}
                 <ModalRatings fb={fb} onSave={saveRating} />
@@ -617,10 +628,12 @@ function FeedbackDetailModal({
                 {fb.analysis && (
                   <div className="space-y-3">
                     <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Kết quả phân tích AI</p>
-                    <div>
-                      <p className="text-xs text-gray-400 mb-1">Nguyên nhân gốc rễ</p>
-                      <p className="text-sm text-gray-800">{fb.analysis.root_cause}</p>
-                    </div>
+                    <InlineTextEdit
+                      label="Nguyên nhân gốc rễ"
+                      value={fb.analysis.root_cause}
+                      onSave={saveRootCause}
+                      multiline
+                    />
                     <div className="flex flex-wrap gap-2">
                       {fb.analysis.impact_level && (
                         <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${IMPACT_COLORS[fb.analysis.impact_level] ?? "bg-gray-100 text-gray-600"}`}>
@@ -636,6 +649,27 @@ function FeedbackDetailModal({
                   </div>
                 )}
 
+                {/* Hướng giải quyết */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Hướng giải quyết</p>
+                    <button
+                      onClick={handleGenerateSolution}
+                      disabled={generatingSolution}
+                      className="text-xs px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200 transition disabled:opacity-50"
+                    >
+                      {generatingSolution ? "Đang tạo..." : "✨ AI"}
+                    </button>
+                  </div>
+                  <InlineTextEdit
+                    label=""
+                    value={fb.analysis?.solution_hint}
+                    onSave={saveSolutionHint}
+                    multiline
+                    placeholder="Chưa có hướng giải quyết. Bấm ✨ AI để tạo tự động."
+                  />
+                </div>
+
                 {/* Solution link */}
                 {fb.solution_id && (
                   <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
@@ -645,6 +679,15 @@ function FeedbackDetailModal({
                     </Link>
                   </div>
                 )}
+
+                {/* Jira button */}
+                <button
+                  onClick={handleOpenJiraPanel}
+                  disabled={preparingJira}
+                  className="w-full flex items-center justify-center gap-2 border border-blue-300 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition disabled:opacity-50"
+                >
+                  {preparingJira ? "Đang chuẩn bị..." : "🎫 Tạo Jira ticket"}
+                </button>
 
                 <div className="flex justify-end pt-1">
                   <Link href={`/feedback/${fb.id}`} className="text-xs text-gray-400 hover:text-gray-600 underline" onClick={onClose}>
