@@ -589,10 +589,10 @@ function FeedbackDetailModal({
           {loading ? (
             <div className="flex-1 flex items-center justify-center text-gray-400">Đang tải...</div>
           ) : !fb ? null : (
-            <div className={`flex-1 overflow-hidden flex ${hasImages ? "flex-row" : "flex-col"}`}>
+            <div className={`flex-1 overflow-hidden flex ${(hasImages || showJiraPanel) ? "flex-row" : "flex-col"}`}>
 
               {/* LEFT: content + ratings + analysis */}
-              <div className={`overflow-y-auto p-5 space-y-4 ${hasImages ? "w-[42%] border-r border-gray-100" : "w-full"}`}>
+              <div className={`overflow-y-auto p-5 space-y-4 ${(hasImages || showJiraPanel) ? "w-[42%] border-r border-gray-100" : "w-full"}`}>
                 {/* Title inline edit */}
                 {fb.title && (
                   <InlineTextEdit
@@ -696,8 +696,20 @@ function FeedbackDetailModal({
                 </div>
               </div>
 
-              {/* RIGHT: image panel */}
-              {hasImages && (
+              {/* RIGHT: jira panel or image panel */}
+              {showJiraPanel && jiraDraft ? (
+                <div className="w-[58%] overflow-hidden flex flex-col border-l border-gray-100">
+                  <JiraPreviewPanel
+                    fb={fb}
+                    draft={jiraDraft}
+                    onChange={patch => setJiraDraft(prev => prev ? { ...prev, ...patch } : prev)}
+                    onSubmit={handleCreateJira}
+                    onCancel={() => setShowJiraPanel(false)}
+                    creating={creatingJira}
+                    result={jiraResult}
+                  />
+                </div>
+              ) : hasImages ? (
                 <div className="w-[58%] overflow-y-auto bg-gray-950 flex flex-col gap-0">
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wide px-4 pt-4 pb-2 shrink-0">
                     Hình ảnh đính kèm · {fb.media_urls!.length} ảnh
@@ -720,7 +732,7 @@ function FeedbackDetailModal({
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
           )}
         </div>
