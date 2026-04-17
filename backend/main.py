@@ -5,7 +5,7 @@ from sqlalchemy import text
 
 from core.config import get_settings
 from core.database import engine
-from api.routes import issues, knowledge_base, jira_webhook, jira_workspace, telegram_webhook, upload, scoring, products, feedbacks, solutions, meetings, action_items, dashboard, auth_settings, priority_config
+from api.routes import issues, knowledge_base, jira_webhook, jira_workspace, telegram_webhook, upload, scoring, products, feedbacks, solutions, meetings, action_items, dashboard, auth_settings, priority_config, documents
 
 
 async def _ensure_feedback_rating_columns() -> None:
@@ -81,6 +81,7 @@ app.include_router(action_items.router, prefix="/api")
 app.include_router(dashboard.router, prefix="/api")
 app.include_router(auth_settings.router, prefix="/api")
 app.include_router(priority_config.router, prefix="/api")
+app.include_router(documents.router, prefix="/api")
 
 
 @app.get("/health")
