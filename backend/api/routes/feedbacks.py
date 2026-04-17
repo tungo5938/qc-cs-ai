@@ -89,11 +89,14 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
     await db.flush()
 
     product_name = product_goal = kb_text = ""
+    root_cause_prompt = solution_hint_prompt = None
     if feedback.product_id:
         product = await db.get(Product, feedback.product_id)
         if product:
             product_name = product.name
             product_goal = product.product_goal or ""
+            root_cause_prompt = product.root_cause_prompt or None
+            solution_hint_prompt = product.solution_hint_prompt or None
             # Use product_documents as KB context (fallback to product.kb_text)
             docs_result = await db.execute(
                 select(ProductDocument).where(ProductDocument.product_id == feedback.product_id).order_by(ProductDocument.path)
@@ -112,6 +115,8 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
             product_name=product_name,
             product_goal=product_goal,
             kb_text=kb_text,
+            root_cause_prompt=root_cause_prompt,
+            solution_hint_prompt=solution_hint_prompt,
         )
     except Exception as e:
         print(f"[FeedbackPipeline] analyze_feedback failed: {e}")
@@ -614,11 +619,13 @@ async def generate_solution(
         raise HTTPException(404, "Feedback not found")
 
     product_name = product_goal = ""
+    solution_hint_prompt = None
     if feedback.product_id:
         product = await db.get(Product, feedback.product_id)
         if product:
             product_name = product.name
             product_goal = product.product_goal or ""
+            solution_hint_prompt = product.solution_hint_prompt or None
 
     root_cause = feedback.analysis.root_cause if feedback.analysis else None
     impact_level = feedback.analysis.impact_level if feedback.analysis else None
@@ -632,6 +639,7 @@ async def generate_solution(
             affected_area=affected_area,
             product_name=product_name,
             product_goal=product_goal,
+            solution_hint_prompt=solution_hint_prompt,
         )
     except Exception as e:
         raise HTTPException(502, f"AI service error: {e}")
@@ -651,6 +659,35 @@ async def generate_solution(
     )
     feedback = result.scalar_one_or_none()
     return FeedbackOut.model_validate(feedback).model_dump()
+
+
+@router.post("/{feedback_id}/suggest-actions")
+async def suggest_actions(
+    feedback_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """AI-suggest action items from feedback analysis. Returns list of {title, assignee}."""
+    result = await db.execute(
+        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+    )
+    feedback = result.scalar_one_or_none()
+    if not feedback:
+        raise HTTPException(404, "Feedback not found")
+
+    product_name = ""
+    if feedback.product_id:
+        product = await db.get(Product, feedback.product_id)
+        if product:
+            product_name = product.name
+
+    analysis = feedback.analysis
+    actions = await ai_service.suggest_actions_from_feedback(
+        feedback_content=feedback.raw_content or "",
+        root_cause=analysis.root_cause if analysis else None,
+        solution_hint=analysis.solution_hint if analysis else None,
+        product_name=product_name,
+    )
+    return {"actions": actions}
 
 
 @router.post("/{feedback_id}/generate-ac")

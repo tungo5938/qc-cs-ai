@@ -105,6 +105,8 @@ export const api = {
       request<any>(`/api/feedbacks/${id}/generate-solution`, { method: "POST" }),
     generateAC: (id: string) =>
       request<{ acceptance_criteria: string }>(`/api/feedbacks/${id}/generate-ac`, { method: "POST" }),
+    suggestActions: (id: string) =>
+      request<{ actions: Array<{ title: string; assignee: string }> }>(`/api/feedbacks/${id}/suggest-actions`, { method: "POST" }),
     createJira: (id: string, body: { title: string; raw_content: string; root_cause?: string; solution_hint?: string; acceptance_criteria: string; sprint_name?: string; epic_key?: string; upload_attachments?: boolean }) =>
       request<{ key: string; url: string }>(`/api/feedbacks/${id}/create-jira`, { method: "POST", body: JSON.stringify(body) }),
   },
@@ -174,6 +176,10 @@ export const api = {
       const query = qs.toString() ? `?${qs}` : "";
       return request<any[]>(`/api/action-items${query}`);
     },
+    listByFeedback: (feedbackId: string) =>
+      request<any[]>(`/api/action-items?source_feedback_id=${feedbackId}`),
+    createForFeedback: (data: { product_id: string; title: string; assignee?: string; source_feedback_id: string }) =>
+      request<any>("/api/action-items", { method: "POST", body: JSON.stringify(data) }),
     create: (data: any) => request<any>("/api/action-items", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: any) => request<any>(`/api/action-items/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
     bulk: (ids: string[], data: any) =>

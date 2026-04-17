@@ -56,7 +56,7 @@ async def update_product(
     product = result.scalar_one_or_none()
     if not product:
         raise HTTPException(404, "Product not found")
-    for field, val in body.model_dump(exclude_none=True).items():
+    for field, val in body.model_dump(exclude_unset=True).items():
         setattr(product, field, val)
     await db.commit()
     await db.refresh(product)
@@ -99,6 +99,7 @@ async def upload_kb_file(
 
         elif filename.endswith(".docx"):
             import docx as _docx
+            import json as _json
             doc = _docx.Document(io.BytesIO(content_bytes))
             lines = []
             for para in doc.paragraphs:
@@ -116,25 +117,26 @@ async def upload_kb_file(
                     cells = [c.text.strip() for c in row.cells if c.text.strip()]
                     if cells:
                         lines.append(" | ".join(cells))
-            kb_text = "\n".join(lines)
+            # Store docx as a single entry (it's a context doc, not Q&A pairs)
+            full_text = "\n".join(lines)
+            kb_text = _json.dumps([{"title": "Document", "content": full_text}], ensure_ascii=False)
 
         elif filename.endswith(".xlsx"):
             import openpyxl as _openpyxl
+            import json as _json
             wb = _openpyxl.load_workbook(io.BytesIO(content_bytes))
             ws = wb.active
             rows = list(ws.iter_rows(values_only=True))
             if not rows:
                 raise HTTPException(400, "Empty spreadsheet")
-            # Skip header row. Extract col B (index 1) = title, col F (index 5) = content
             entries = []
             for row in rows[1:]:
                 title = str(row[1]).strip() if row[1] else ""
                 content = str(row[5]).strip() if row[5] else ""
                 if title and content:
-                    # Clean up literal \n sequences
                     content = content.replace("\\n", "\n")
-                    entries.append(f"### {title}\n{content}")
-            kb_text = "\n\n".join(entries)
+                    entries.append({"title": title, "content": content})
+            kb_text = _json.dumps(entries, ensure_ascii=False)
 
         else:
             raise HTTPException(400, f"Unsupported file type: {filename}. Use .docx, .xlsx, or .txt")
@@ -148,3 +150,23 @@ async def upload_kb_file(
     await db.commit()
     await db.refresh(product)
     return product
+
+
+@router.get("/{product_id}/kb-entries")
+async def get_kb_entries(product_id: str, db: AsyncSession = Depends(get_db)):
+    """Return kb_text parsed as JSON entries for table display."""
+    import json as _json
+    result = await db.execute(select(Product).where(Product.id == product_id))
+    product = result.scalar_one_or_none()
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    kb_text = product.kb_text or ""
+    try:
+        entries = _json.loads(kb_text)
+        if isinstance(entries, list):
+            return {"entries": entries, "format": "json", "count": len(entries)}
+    except Exception:
+        pass
+    # Plain text fallback
+    return {"entries": [{"title": "KB Text", "content": kb_text}], "format": "text", "count": 1}

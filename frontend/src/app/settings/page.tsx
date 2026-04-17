@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/api";
-import type { Product } from "@/lib/types";
+import type { Product, PriorityConfig } from "@/lib/types";
 
 // ── Access Control section (admin only) ───────────────────────────────────────
 
@@ -274,6 +274,176 @@ function KbTable({ kb_text, onChange }: { kb_text: string; onChange: (val: strin
   );
 }
 
+// ── Priority Formula component ────────────────────────────────────────────────
+
+function PriorityFormula() {
+  const [config, setConfig] = useState<PriorityConfig>({
+    user_rating_weight: 0.4,
+    po_rating_weight: 0.4,
+    dev_rating_weight: 0.2,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.priorityConfig.get()
+      .then(setConfig)
+      .catch((e: any) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const total = config.user_rating_weight + config.po_rating_weight + config.dev_rating_weight;
+  const isValid = total > 0;
+
+  function pct(w: number) {
+    return total > 0 ? Math.round((w / total) * 100) : 0;
+  }
+
+  function handleChange(field: keyof PriorityConfig, value: string) {
+    const num = parseFloat(value);
+    if (!isNaN(num) && num >= 0) {
+      setConfig(prev => ({ ...prev, [field]: num }));
+      setSaved(false);
+    }
+  }
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await api.priorityConfig.update(config);
+      setConfig(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function reset() {
+    setConfig({ user_rating_weight: 0.4, po_rating_weight: 0.4, dev_rating_weight: 0.2 });
+    setSaved(false);
+  }
+
+  const FIELDS: { key: keyof PriorityConfig; label: string; desc: string; color: string }[] = [
+    {
+      key: "user_rating_weight",
+      label: "👤 User Rating",
+      desc: "Mức độ ưu tiên do người dùng/CS đánh giá (pain, urgency)",
+      color: "bg-blue-500",
+    },
+    {
+      key: "po_rating_weight",
+      label: "📊 PO Rating (1-10)",
+      desc: "PO đánh giá dựa trên product goal và business value",
+      color: "bg-purple-500",
+    },
+    {
+      key: "dev_rating_weight",
+      label: "⚙️ Dev Rating / Effort (1-10, 1=ít effort nhất)",
+      desc: "Dev đánh giá effort thực thi (1 = ít effort = dễ làm hơn)",
+      color: "bg-green-500",
+    },
+  ];
+
+  return (
+    <div className="border border-gray-200 rounded-xl bg-white mb-8">
+      <div className="px-5 py-4 border-b border-gray-100">
+        <h2 className="font-semibold text-gray-900">Công thức ưu tiên</h2>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Priority Score = (User Rating × W₁) + (PO Rating × W₂) + (Dev Rating × W₃), thang điểm 1–10.
+          Mặc định: User 40% · PO 40% · Dev 20%.
+        </p>
+      </div>
+      <div className="p-5 space-y-4">
+        {error && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>
+        )}
+
+        {loading ? (
+          <p className="text-sm text-gray-400 text-center py-4">Đang tải...</p>
+        ) : (
+          <>
+            {/* Visual bar */}
+            <div className="flex rounded-full overflow-hidden h-3 gap-0.5">
+              {FIELDS.map(f => (
+                <div
+                  key={f.key}
+                  className={`${f.color} transition-all`}
+                  style={{ width: `${pct(config[f.key])}%` }}
+                />
+              ))}
+            </div>
+            <div className="flex justify-between text-xs text-gray-400 -mt-1">
+              {FIELDS.map(f => (
+                <span key={f.key}>{pct(config[f.key])}%</span>
+              ))}
+            </div>
+
+            {/* Weight inputs */}
+            <div className="space-y-3">
+              {FIELDS.map(f => (
+                <div key={f.key} className="flex items-center gap-4">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-800">{f.label}</p>
+                    <p className="text-xs text-gray-400">{f.desc}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={config[f.key]}
+                      onChange={e => handleChange(f.key, e.target.value)}
+                      className="w-28 accent-red-600"
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={config[f.key]}
+                      onChange={e => handleChange(f.key, e.target.value)}
+                      className="w-16 border border-gray-200 rounded px-2 py-1 text-sm text-center focus:outline-none focus:ring-2 focus:ring-red-500"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {!isValid && (
+              <p className="text-xs text-red-500">Tổng trọng số phải lớn hơn 0</p>
+            )}
+
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={reset}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                Reset về mặc định
+              </button>
+              <button
+                onClick={save}
+                disabled={saving || !isValid}
+                className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+              >
+                {saving ? "Đang lưu..." : saved ? "✓ Đã lưu" : "Lưu công thức"}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Products ───────────────────────────────────────────────────────────────────
+
 const DEFAULT_PRODUCTS = [
   { name: "CS AI", color: "#EF4444" },
   { name: "CS Chat", color: "#3B82F6" },
@@ -298,6 +468,8 @@ interface ProductFormData {
   product_goal: string;
   kb_text: string;
   google_sheet_url: string;
+  root_cause_prompt: string;
+  solution_hint_prompt: string;
 }
 
 const emptyForm = (): ProductFormData => ({
@@ -309,6 +481,8 @@ const emptyForm = (): ProductFormData => ({
   product_goal: "",
   kb_text: "",
   google_sheet_url: "",
+  root_cause_prompt: "",
+  solution_hint_prompt: "",
 });
 
 function productToForm(p: Product): ProductFormData {
@@ -321,6 +495,8 @@ function productToForm(p: Product): ProductFormData {
     product_goal: p.product_goal || "",
     kb_text: p.kb_text || "",
     google_sheet_url: p.google_sheet_url || "",
+    root_cause_prompt: p.root_cause_prompt || "",
+    solution_hint_prompt: p.solution_hint_prompt || "",
   };
 }
 
@@ -395,6 +571,8 @@ export default function SettingsPage() {
         product_goal: editForm.product_goal || null,
         kb_text: editForm.kb_text || null,
         google_sheet_url: editForm.google_sheet_url || null,
+        root_cause_prompt: editForm.root_cause_prompt || null,
+        solution_hint_prompt: editForm.solution_hint_prompt || null,
       };
       const updated = await api.products.update(id, payload);
       setProducts(prev => prev.map(p => (p.id === id ? updated : p)));
@@ -431,6 +609,8 @@ export default function SettingsPage() {
         product_goal: newForm.product_goal || null,
         kb_text: newForm.kb_text || null,
         google_sheet_url: newForm.google_sheet_url || null,
+        root_cause_prompt: newForm.root_cause_prompt || null,
+        solution_hint_prompt: newForm.solution_hint_prompt || null,
       };
       const created = await api.products.create(payload);
       setProducts(prev => [...prev, created]);
@@ -472,6 +652,8 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl mx-auto">
         {isAdmin && <AccessControl adminEmail={userEmail} />}
+
+        <PriorityFormula />
 
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -671,6 +853,32 @@ function ProductForm({ form, onChange, onSave, onCancel, saving, saveLabel, onKb
           placeholder="VD: Giảm thời gian xử lý ticket CS xuống dưới 2 phút..."
           rows={2}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">
+          Prompt phân tích nguyên nhân gốc rễ
+          <span className="ml-1 text-gray-400 font-normal">(để trống = dùng mặc định)</span>
+        </label>
+        <textarea
+          value={form.root_cause_prompt}
+          onChange={e => set("root_cause_prompt", e.target.value)}
+          placeholder="Bạn là AI phân tích feedback sản phẩm..."
+          rows={3}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-y font-mono"
+        />
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-gray-700 mb-1">
+          Prompt hướng giải quyết
+          <span className="ml-1 text-gray-400 font-normal">(để trống = dùng mặc định)</span>
+        </label>
+        <textarea
+          value={form.solution_hint_prompt}
+          onChange={e => set("solution_hint_prompt", e.target.value)}
+          placeholder="Câu đầu: tổng quan. Tiếp theo: - CDN: ... - GHN: ... - CS: ... - Tunm1: ..."
+          rows={3}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-y font-mono"
         />
       </div>
       <div>

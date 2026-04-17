@@ -6,11 +6,14 @@ from datetime import datetime, date
 class ActionItemOut(BaseModel):
     id: str
     product_id: str
+    product_name: Optional[str] = None
     title: str
     assignee: Optional[str] = None
     deadline: Optional[date] = None
     status: str
+    output_url: Optional[str] = None
     source_meeting_id: Optional[str] = None
+    source_feedback_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -23,7 +26,9 @@ class ActionItemCreate(BaseModel):
     title: str
     assignee: Optional[str] = None
     deadline: Optional[date] = None
+    output_url: Optional[str] = None
     source_meeting_id: Optional[str] = None
+    source_feedback_id: Optional[str] = None
 
 
 class ActionItemUpdate(BaseModel):
@@ -31,6 +36,7 @@ class ActionItemUpdate(BaseModel):
     assignee: Optional[str] = None
     deadline: Optional[date] = None
     status: Optional[str] = None
+    output_url: Optional[str] = None
 
 
 class ActionItemBulkUpdate(BaseModel):

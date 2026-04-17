@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional, TYPE_CHECKING
-from sqlalchemy import String, Date, DateTime, ForeignKey, func
+from sqlalchemy import String, Date, DateTime, ForeignKey, func, Text
+import sqlalchemy as sa
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from core.database import Base
 from models.base import gen_uuid
@@ -19,9 +20,13 @@ class ActionItem(Base):
     assignee: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
     deadline: Mapped[Optional[object]] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="todo")
-    # 'todo' | 'in_progress' | 'done'
+    # 'todo' (chưa chốt) | 'confirmed' (đã chốt) | 'in_progress' (đang làm) | 'done' (đã làm) | 'cancelled'
+    output_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     source_meeting_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("meetings.id"), nullable=True
+    )
+    source_feedback_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("feedbacks.id", ondelete="SET NULL"), nullable=True
     )
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

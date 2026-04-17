@@ -76,6 +76,8 @@ export interface Product {
   product_goal?: string | null;
   kb_text?: string | null;
   google_sheet_url?: string | null;
+  root_cause_prompt?: string | null;
+  solution_hint_prompt?: string | null;
 }
 
 // ── PM Tool types ──────────────────────────────────────────────────────────────
@@ -194,6 +196,7 @@ export interface ActionItem {
   meeting_id?: string | null;
   meeting_name?: string | null;
   source_meeting_id?: string | null;
+  source_feedback_id?: string | null;
   title: string;
   assignee?: string | null;
   status: ActionStatus;

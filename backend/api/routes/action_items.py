@@ -18,6 +18,7 @@ async def list_action_items(
     product_id: Optional[str] = None,
     status: Optional[str] = None,
     assignee: Optional[str] = None,
+    source_feedback_id: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
     query = select(ActionItem)
@@ -27,6 +28,8 @@ async def list_action_items(
         query = query.where(ActionItem.status == status)
     if assignee:
         query = query.where(ActionItem.assignee == assignee)
+    if source_feedback_id:
+        query = query.where(ActionItem.source_feedback_id == source_feedback_id)
     query = query.order_by(ActionItem.created_at.desc())
     result = await db.execute(query)
     items = result.scalars().all()
@@ -49,6 +52,7 @@ async def create_action_item(
         assignee=body.assignee,
         deadline=body.deadline,
         source_meeting_id=body.source_meeting_id,
+        source_feedback_id=body.source_feedback_id,
         status="todo",
     )
     db.add(item)

@@ -242,9 +242,17 @@ def _format_kb_for_prompt(kb_text: str) -> str:
     return kb_text
 
 
-async def analyze_feedback(content: str, product_name: str, kb_context: str = "", product_goal: str = "", kb_text: str = "") -> dict:
+async def analyze_feedback(
+    content: str,
+    product_name: str,
+    kb_context: str = "",
+    product_goal: str = "",
+    kb_text: str = "",
+    root_cause_prompt: Optional[str] = None,
+    solution_hint_prompt: Optional[str] = None,
+) -> dict:
     """Analyze product feedback using GPT-4o. Returns parsed analysis dict."""
-    system = ANALYZE_FEEDBACK_SYSTEM
+    system = root_cause_prompt if root_cause_prompt else ANALYZE_FEEDBACK_SYSTEM
     if product_goal:
         system = f"Mục tiêu sản phẩm: {product_goal}\n\n" + system
 
@@ -423,8 +431,15 @@ Respond ONLY with valid JSON in this format:
 
 
 GENERATE_SOLUTION_HINT_SYSTEM = """Bạn là AI hỗ trợ PM tại GHN đề xuất hướng giải quyết cho feedback sản phẩm.
-Dựa trên thông tin feedback và phân tích, đề xuất hướng giải quyết ngắn gọn, thực tế, bằng tiếng Việt.
-Tối đa 300 ký tự. Chỉ trả về nội dung hướng giải quyết, không giải thích thêm."""
+Dựa trên thông tin feedback và phân tích, đề xuất hướng giải quyết theo đúng format sau:
+
+Câu đầu tiên: hướng giải quyết tổng quan (1 câu ngắn gọn).
+- CDN: {hành động cụ thể CDN cần làm}
+- GHN: {hành động cụ thể GHN cần làm}
+- CS: {hành động cụ thể CS cần làm}
+- Tunm1: {hành động cụ thể Tunm1 cần làm}
+
+Chỉ trả về nội dung theo format trên, không giải thích thêm. Tiếng Việt."""
 
 GENERATE_AC_SYSTEM = """Bạn là AI hỗ trợ PM tại GHN viết Acceptance Criteria (AC) cho Jira ticket.
 Dựa trên hướng giải quyết được cung cấp, tạo danh sách AC rõ ràng, kiểm thử được, bằng tiếng Việt.
@@ -439,9 +454,10 @@ async def generate_solution_hint(
     affected_area: Optional[str],
     product_name: str = "",
     product_goal: str = "",
+    solution_hint_prompt: Optional[str] = None,
 ) -> str:
     """Generate solution hint using GPT-4o. Returns plain text."""
-    system = GENERATE_SOLUTION_HINT_SYSTEM
+    system = solution_hint_prompt if solution_hint_prompt else GENERATE_SOLUTION_HINT_SYSTEM
     if product_goal:
         system = f"Mục tiêu sản phẩm: {product_goal}\n\n" + system
     user_prompt = f"Sản phẩm: {product_name}\n\nFeedback: {raw_content}\n\nNguyên nhân: {root_cause or 'chưa xác định'}\nMức độ: {impact_level or 'medium'}\nKhu vực: {affected_area or 'other'}"
@@ -473,6 +489,44 @@ async def generate_acceptance_criteria(solution_hint: str) -> str:
         return response.choices[0].message.content.strip()
     except Exception:
         raise
+
+
+SUGGEST_ACTIONS_SYSTEM = """Bạn là AI hỗ trợ PM tại GHN tạo action items từ phân tích feedback.
+Dựa trên feedback và hướng giải quyết, tạo danh sách action items theo JSON array.
+Mỗi item có format:
+{"title": "Mô tả công việc ngắn gọn (tối đa 200 ký tự)", "assignee": "CDN hoặc GHN hoặc CS hoặc Tunm1"}
+Trả về JSON array, tối đa 4 items, không có văn bản nào khác."""
+
+
+async def suggest_actions_from_feedback(
+    feedback_content: str,
+    root_cause: Optional[str],
+    solution_hint: Optional[str],
+    product_name: str = "",
+) -> list[dict]:
+    """Suggest action items from feedback analysis. Returns list of {title, assignee}."""
+    user_prompt = (
+        f"Sản phẩm: {product_name}\n\n"
+        f"Feedback: {feedback_content}\n\n"
+        f"Nguyên nhân: {root_cause or ''}\n\n"
+        f"Hướng giải quyết: {solution_hint or ''}"
+    )
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=512,
+            messages=[
+                {"role": "system", "content": SUGGEST_ACTIONS_SYSTEM},
+                {"role": "user", "content": user_prompt},
+            ],
+            temperature=0.3,
+        )
+        result = _parse_json_response(response.choices[0].message.content)
+        if isinstance(result, list):
+            return result
+        return []
+    except Exception:
+        return []
 
 
 async def chat_with_document_context(

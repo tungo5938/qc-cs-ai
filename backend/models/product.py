@@ -20,6 +20,8 @@ class Product(Base):
     product_goal: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     kb_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     google_sheet_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    root_cause_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    solution_hint_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

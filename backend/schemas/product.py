@@ -13,6 +13,8 @@ class ProductOut(BaseModel):
     product_goal: Optional[str] = None
     kb_text: Optional[str] = None
     google_sheet_url: Optional[str] = None
+    root_cause_prompt: Optional[str] = None
+    solution_hint_prompt: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -28,6 +30,8 @@ class ProductCreate(BaseModel):
     product_goal: Optional[str] = None
     kb_text: Optional[str] = None
     google_sheet_url: Optional[str] = None
+    root_cause_prompt: Optional[str] = None
+    solution_hint_prompt: Optional[str] = None
 
 
 class ProductUpdate(BaseModel):
@@ -39,3 +43,5 @@ class ProductUpdate(BaseModel):
     product_goal: Optional[str] = None
     kb_text: Optional[str] = None
     google_sheet_url: Optional[str] = None
+    root_cause_prompt: Optional[str] = None
+    solution_hint_prompt: Optional[str] = None
