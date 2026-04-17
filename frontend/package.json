@@ -15,15 +15,19 @@
     "@tiptap/starter-kit": "^3.22.3",
     "@tldraw/tldraw": "^4.5.8",
     "clsx": "^2.1.1",
+    "diff": "^9.0.0",
     "lucide-react": "^0.469.0",
     "next": "15.1.11",
     "next-auth": "^4.24.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-resizable-panels": "^4.10.0"
+    "react-markdown": "^10.1.0",
+    "react-resizable-panels": "^4.10.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
+    "@types/diff": "^7.0.2",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",

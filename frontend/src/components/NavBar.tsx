@@ -19,6 +19,7 @@ const NAV_LINKS = [
   { href: "/solutions", label: "Solutions" },
   { href: "/meetings", label: "Meetings" },
   { href: "/actions", label: "Actions" },
+  { href: "/documents", label: "Documents" },
   { href: "/settings", label: "Cài đặt" },
 ];
 
