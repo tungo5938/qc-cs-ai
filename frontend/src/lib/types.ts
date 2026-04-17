@@ -223,6 +223,29 @@ export interface WorkspaceAction {
   message: string;
 }
 
+export interface ProductDocument {
+  id: string;
+  product_id: string | null;
+  path: string;
+  title: string;
+  content: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentAction {
+  type: "update_document";
+  document_path: string;
+  new_content: string;
+}
+
+export interface DocumentChatMessage {
+  role: "user" | "assistant";
+  content: string;
+  actions?: DocumentAction[];
+}
+
 export interface DashboardData {
   pending_feedbacks: number;
   overdue_actions: number;

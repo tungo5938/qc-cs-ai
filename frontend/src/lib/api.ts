@@ -186,4 +186,20 @@ export const api = {
       return request<any>(`/api/dashboard${query}`);
     },
   },
+  documents: {
+    list: (product_id?: string) =>
+      request<any[]>(`/api/documents${product_id ? `?product_id=${product_id}` : ""}`),
+    get: (id: string) => request<any>(`/api/documents/${id}`),
+    create: (body: { product_id?: string; path: string; title: string; content?: string; created_by?: string }) =>
+      request<any>("/api/documents", { method: "POST", body: JSON.stringify(body) }),
+    update: (id: string, body: { title?: string; content?: string }) =>
+      request<any>(`/api/documents/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      request<any>(`/api/documents/${id}`, { method: "DELETE" }),
+    chat: (id: string, message: string, tagged_document_ids: string[]) =>
+      request<{ reply: string; actions: any[] }>(`/api/documents/${id}/chat`, {
+        method: "POST",
+        body: JSON.stringify({ message, tagged_document_ids }),
+      }),
+  },
 };
