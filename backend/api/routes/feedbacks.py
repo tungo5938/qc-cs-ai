@@ -12,6 +12,7 @@ from models.feedback import Feedback
 from models.feedback_analysis import FeedbackAnalysis
 from models.product import Product
 from models.priority_config import PriorityConfig
+from models.document import ProductDocument
 from models.base import gen_uuid
 from pydantic import BaseModel
 from schemas.feedback import FeedbackOut, FeedbackCreate, FeedbackUpdate, AnalysisUpdate, CreateJiraBody
@@ -93,7 +94,17 @@ async def _run_analysis_pipeline(db: AsyncSession, feedback: Feedback) -> Feedba
         if product:
             product_name = product.name
             product_goal = product.product_goal or ""
-            kb_text = product.kb_text or ""
+            # Use product_documents as KB context (fallback to product.kb_text)
+            docs_result = await db.execute(
+                select(ProductDocument).where(ProductDocument.product_id == feedback.product_id).order_by(ProductDocument.path)
+            )
+            docs = docs_result.scalars().all()
+            if docs:
+                kb_text = "\n\n".join(
+                    f"# {d.title}\n{d.content}" for d in docs if d.content
+                )
+            else:
+                kb_text = product.kb_text or ""
 
     try:
         analysis_data = await ai_service.analyze_feedback(

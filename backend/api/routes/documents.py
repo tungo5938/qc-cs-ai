@@ -8,6 +8,7 @@ from core.database import get_db
 from models.document import ProductDocument
 from models.base import gen_uuid
 from schemas.document import DocumentOut, DocumentCreate, DocumentUpdate, DocumentChatRequest, DocumentChatResponse, DocumentAction
+from services import ai_service as _ai
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -67,3 +68,28 @@ async def delete_document(doc_id: str, db: AsyncSession = Depends(get_db)):
     await db.delete(doc)
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/{doc_id}/chat", response_model=DocumentChatResponse)
+async def chat_document(doc_id: str, body: DocumentChatRequest, db: AsyncSession = Depends(get_db)):
+    doc = await db.get(ProductDocument, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    tagged_docs = []
+    if body.tagged_document_ids:
+        for tid in body.tagged_document_ids:
+            tdoc = await db.get(ProductDocument, tid)
+            if tdoc:
+                tagged_docs.append({"path": tdoc.path, "content": tdoc.content})
+
+    result = await _ai.chat_with_document_context(
+        active_doc_path=doc.path,
+        active_doc_content=doc.content,
+        tagged_docs=tagged_docs,
+        message=body.message,
+    )
+    return DocumentChatResponse(
+        reply=result["reply"],
+        actions=[DocumentAction(**a) for a in result.get("actions", [])],
+    )

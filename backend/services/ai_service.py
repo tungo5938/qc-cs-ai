@@ -475,6 +475,49 @@ async def generate_acceptance_criteria(solution_hint: str) -> str:
         raise
 
 
+async def chat_with_document_context(
+    active_doc_path: str,
+    active_doc_content: str,
+    tagged_docs: list[dict],  # [{"path": str, "content": str}]
+    message: str,
+) -> dict:
+    """Chat with AI about documents. Returns {"reply": str, "actions": [...]}."""
+    context_parts = [f"--- {active_doc_path} ---\n{active_doc_content}"]
+    for d in tagged_docs:
+        context_parts.append(f"--- {d['path']} ---\n{d['content']}")
+    context = "\n\n".join(context_parts)
+
+    system = (
+        "Bạn là AI assistant giúp quản lý tài liệu sản phẩm của GHN CS team.\n"
+        "Bạn có thể đọc và cập nhật tài liệu markdown.\n"
+        "Nếu user yêu cầu cập nhật tài liệu, trả về JSON với cấu trúc sau:\n"
+        '{\"reply\": \"<giải thích ngắn>\", \"actions\": [{\"type\": \"update_document\", \"document_path\": \"<path>\", \"new_content\": \"<full markdown content>\"}]}\n'
+        "Nếu không cần cập nhật tài liệu, trả về:\n"
+        '{\"reply\": \"<câu trả lời>\", \"actions\": []}\n'
+        "Luôn trả về JSON hợp lệ. KHÔNG bao bọc trong markdown code block."
+    )
+
+    user_prompt = f"Tài liệu hiện tại:\n{context[:30000]}\n\nUser: {message}"
+
+    try:
+        response = await get_client().chat.completions.create(
+            model="gpt-4o",
+            max_tokens=4096,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user_prompt},
+            ],
+        )
+        raw = response.choices[0].message.content or ""
+        parsed = _parse_json_response(raw)
+        return {
+            "reply": parsed.get("reply", raw),
+            "actions": parsed.get("actions", []),
+        }
+    except Exception as e:
+        return {"reply": f"Lỗi: {e}", "actions": []}
+
+
 async def generate_solution_draft(feedback_content: str, analysis: dict, product_name: str) -> dict:
     """Generate a solution draft using GPT-4o. Returns parsed draft dict."""
     user_prompt = (
