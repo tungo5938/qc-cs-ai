@@ -14,34 +14,34 @@ function LoginContent() {
   }, [status, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-sm text-center">
-        <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center mx-auto mb-4">
+    <div className="min-h-screen flex items-center justify-center bg-[#0A0F1E]">
+      <div className="bg-gray-900 rounded-2xl border border-gray-800 p-8 w-full max-w-sm text-center shadow-2xl">
+        <div className="w-12 h-12 bg-red-600 rounded-xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-900/50">
           <span className="text-white font-bold text-xl">PM</span>
         </div>
-        <h1 className="text-xl font-bold text-gray-900 mb-1">GHN CS Tool</h1>
-        <p className="text-sm text-gray-500 mb-6">Công cụ nội bộ — yêu cầu đăng nhập</p>
+        <h1 className="text-xl font-bold text-white mb-1">GHN CS Tool</h1>
+        <p className="text-sm text-gray-400 mb-6">Công cụ nội bộ — yêu cầu đăng nhập</p>
 
         {error === "AccessDenied" && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
             Tài khoản chưa được cấp quyền. Liên hệ admin để được thêm vào danh sách.
           </div>
         )}
         {error && error !== "AccessDenied" && (
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-700">
+          <div className="mb-4 p-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg text-sm text-yellow-400">
             Đăng nhập thất bại. Vui lòng thử lại.
           </div>
         )}
 
         <button
           onClick={() => signIn("google", { callbackUrl: "/" })}
-          className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 active:bg-gray-100 transition"
+          className="w-full flex items-center justify-center gap-3 bg-white/5 border border-gray-700 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-200 hover:bg-white/10 hover:border-gray-600 active:bg-white/15 transition-colors"
         >
           <GoogleIcon />
           Đăng nhập với Google
         </button>
 
-        <p className="text-xs text-gray-400 mt-4">
+        <p className="text-xs text-gray-600 mt-4">
           Tài khoản phải được admin cấp quyền trước khi đăng nhập
         </p>
       </div>

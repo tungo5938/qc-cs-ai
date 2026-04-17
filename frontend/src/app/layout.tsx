@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="vi">
+    <html lang="vi" className="dark">
       <body className={inter.className}>
         <Providers>
           <ConditionalLayout>{children}</ConditionalLayout>

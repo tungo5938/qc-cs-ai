@@ -1,3 +1,113 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* ── Dark mode design system (UI UX Pro Max — Dark Dashboard palette) ─────── */
+/* Skill: Financial Dashboard — Dark bg + red GHN accent + clean minimalism   */
+
+.dark {
+  color-scheme: dark;
+}
+
+/* ── Base ──────────────────────────────────────────────────────────────────── */
+.dark body {
+  background-color: #0A0F1E;
+  color: #F9FAFB;
+}
+
+/* ── Backgrounds ───────────────────────────────────────────────────────────── */
+.dark .bg-white          { background-color: #111827; }
+.dark .bg-gray-50        { background-color: #0F172A; }
+.dark .bg-gray-100       { background-color: #1E2A3A; }
+.dark .bg-gray-200       { background-color: #374151; }
+.dark .bg-gray-800       { background-color: #1F2937; }
+.dark .bg-gray-900       { background-color: #111827; }
+
+/* Light tint surfaces — mute them in dark mode */
+.dark .bg-red-50         { background-color: rgba(239,68,68,0.12); }
+.dark .bg-orange-50      { background-color: rgba(249,115,22,0.12); }
+.dark .bg-blue-50        { background-color: rgba(59,130,246,0.12); }
+.dark .bg-green-50       { background-color: rgba(34,197,94,0.12); }
+.dark .bg-yellow-50      { background-color: rgba(234,179,8,0.12); }
+.dark .bg-purple-50      { background-color: rgba(168,85,247,0.12); }
+.dark .bg-indigo-50      { background-color: rgba(99,102,241,0.12); }
+
+/* Hover variants */
+.dark .hover\:bg-gray-50:hover  { background-color: #1E2A3A; }
+.dark .hover\:bg-gray-100:hover { background-color: #253040; }
+.dark .hover\:bg-red-50:hover   { background-color: rgba(239,68,68,0.18); }
+
+/* ── Text ──────────────────────────────────────────────────────────────────── */
+.dark .text-gray-900     { color: #F9FAFB; }
+.dark .text-gray-800     { color: #F3F4F6; }
+.dark .text-gray-700     { color: #E5E7EB; }
+.dark .text-gray-600     { color: #D1D5DB; }
+.dark .text-gray-500     { color: #9CA3AF; }
+.dark .text-gray-400     { color: #6B7280; }
+.dark .text-gray-300     { color: #4B5563; }
+
+/* ── Borders ───────────────────────────────────────────────────────────────── */
+.dark .border-gray-50    { border-color: #1E2A3A; }
+.dark .border-gray-100   { border-color: #1F2937; }
+.dark .border-gray-200   { border-color: #374151; }
+.dark .border-gray-300   { border-color: #4B5563; }
+
+.dark .divide-gray-100 > * + * { border-color: #1F2937; }
+.dark .divide-gray-200 > * + * { border-color: #374151; }
+
+/* ── Shadows ───────────────────────────────────────────────────────────────── */
+.dark .shadow-sm  { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.6); }
+.dark .shadow     { box-shadow: 0 1px 3px 0 rgba(0,0,0,0.6), 0 1px 2px -1px rgba(0,0,0,0.6); }
+.dark .shadow-md  { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.6), 0 2px 4px -2px rgba(0,0,0,0.6); }
+.dark .shadow-lg  { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.7), 0 4px 6px -4px rgba(0,0,0,0.7); }
+.dark .shadow-xl  { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.7), 0 8px 10px -6px rgba(0,0,0,0.7); }
+
+/* ── Inputs & Forms ────────────────────────────────────────────────────────── */
+.dark input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+.dark textarea,
+.dark select {
+  background-color: #1F2937;
+  color: #F9FAFB;
+  border-color: #374151;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #4B5563;
+}
+
+.dark input:focus:not([type="checkbox"]):not([type="radio"]),
+.dark textarea:focus,
+.dark select:focus {
+  border-color: #EF4444;
+  outline: none;
+}
+
+/* ── Prose (markdown content) ──────────────────────────────────────────────── */
+.dark .prose          { color: #D1D5DB; }
+.dark .prose h1,
+.dark .prose h2,
+.dark .prose h3,
+.dark .prose h4       { color: #F9FAFB; }
+.dark .prose strong   { color: #F3F4F6; }
+.dark .prose a        { color: #F87171; }
+.dark .prose code     { color: #FCA5A5; background-color: #1F2937; }
+.dark .prose pre      { background-color: #0F172A; }
+.dark .prose blockquote { border-left-color: #374151; color: #9CA3AF; }
+.dark .prose hr       { border-color: #374151; }
+.dark .prose thead    { border-color: #374151; }
+.dark .prose tbody tr { border-color: #1F2937; }
+.dark .prose th,
+.dark .prose td       { color: #D1D5DB; }
+
+/* ── Scrollbars ────────────────────────────────────────────────────────────── */
+.dark ::-webkit-scrollbar        { width: 6px; height: 6px; }
+.dark ::-webkit-scrollbar-track  { background: #0F172A; }
+.dark ::-webkit-scrollbar-thumb  { background: #374151; border-radius: 3px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #4B5563; }
+
+/* ── Selection ─────────────────────────────────────────────────────────────── */
+.dark ::selection {
+  background-color: rgba(239,68,68,0.3);
+  color: #F9FAFB;
+}
