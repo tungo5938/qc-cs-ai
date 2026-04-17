@@ -291,8 +291,8 @@ function JiraPreviewPanel({
   result,
 }: {
   fb: Feedback;
-  draft: { title: string; acceptance_criteria: string; sprint_name: string };
-  onChange: (patch: Partial<{ title: string; acceptance_criteria: string; sprint_name: string }>) => void;
+  draft: { title: string; acceptance_criteria: string; sprint_name: string; epic_key?: string };
+  onChange: (patch: Partial<{ title: string; acceptance_criteria: string; sprint_name: string; epic_key?: string }>) => void;
   onSubmit: () => void;
   onCancel: () => void;
   creating: boolean;
