@@ -108,24 +108,27 @@ function RatingInput({
 }
 
 // ── Rating cells for modal (always-visible inputs, save on Enter/blur) ───────
+type RatingField = "user_priority" | "tu_danh_gia" | "tech_rating";
+type NoteField = "user_priority_note" | "tu_danh_gia_note" | "tech_rating_note";
+
 function ModalRatings({
   fb,
   onSave,
 }: {
   fb: Feedback;
-  onSave: (field: "user_priority" | "tu_danh_gia" | "tech_rating", val: number) => Promise<void>;
+  onSave: (field: RatingField, val: number, note?: string) => Promise<void>;
 }) {
-  const FIELDS: { label: string; field: "user_priority" | "tu_danh_gia" | "tech_rating"; value: number | null | undefined }[] = [
-    { label: "👤 User", field: "user_priority", value: fb.user_priority },
-    { label: "📊 PO", field: "tu_danh_gia", value: fb.tu_danh_gia },
-    { label: "⚙️ Dev", field: "tech_rating", value: fb.tech_rating },
+  const FIELDS: { label: string; field: RatingField; noteField: NoteField; value: number | null | undefined; note: string | null | undefined }[] = [
+    { label: "👤 User", field: "user_priority", noteField: "user_priority_note", value: fb.user_priority, note: fb.user_priority_note },
+    { label: "📊 PO", field: "tu_danh_gia", noteField: "tu_danh_gia_note", value: fb.tu_danh_gia, note: fb.tu_danh_gia_note },
+    { label: "⚙️ Dev", field: "tech_rating", noteField: "tech_rating_note", value: fb.tech_rating, note: fb.tech_rating_note },
   ];
   return (
     <div className="bg-gray-50 rounded-xl p-4">
       <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Đánh giá ưu tiên</p>
       <div className="grid grid-cols-4 gap-2">
         {FIELDS.map(r => (
-          <ModalRatingCell key={r.field} label={r.label} field={r.field} serverValue={r.value} onSave={onSave} />
+          <ModalRatingCell key={r.field} label={r.label} field={r.field} serverValue={r.value} serverNote={r.note} onSave={onSave} />
         ))}
         <div className="flex flex-col items-center justify-center bg-orange-50 rounded-lg p-3 border border-orange-100">
           <p className="text-xs text-gray-500 mb-0.5">★ Tổng</p>
@@ -142,29 +145,33 @@ function ModalRatingCell({
   label,
   field,
   serverValue,
+  serverNote,
   onSave,
 }: {
   label: string;
-  field: "user_priority" | "tu_danh_gia" | "tech_rating";
+  field: RatingField;
   serverValue: number | null | undefined;
-  onSave: (field: "user_priority" | "tu_danh_gia" | "tech_rating", val: number) => Promise<void>;
+  serverNote: string | null | undefined;
+  onSave: (field: RatingField, val: number, note?: string) => Promise<void>;
 }) {
   const [draft, setDraft] = useState(serverValue?.toString() ?? "");
+  const [note, setNote] = useState(serverNote ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  // Sync when server value changes (e.g. after save)
-  useEffect(() => {
-    setDraft(serverValue?.toString() ?? "");
-  }, [serverValue]);
+  useEffect(() => { setDraft(serverValue?.toString() ?? ""); }, [serverValue]);
+  useEffect(() => { setNote(serverNote ?? ""); }, [serverNote]);
 
-  async function commit() {
+  async function commit(currentNote?: string) {
     const num = parseInt(draft, 10);
-    if (isNaN(num) || num < 1 || num > 10) return;
-    if (num === serverValue) return;
+    const noteVal = currentNote ?? note;
+    const numChanged = !isNaN(num) && num >= 1 && num <= 10 && num !== serverValue;
+    const noteChanged = noteVal !== (serverNote ?? "");
+    if (!numChanged && !noteChanged) return;
     setSaving(true);
     try {
-      await onSave(field, num);
+      const val = numChanged ? num : (serverValue ?? 1);
+      await onSave(field, val, noteVal);
       setSaved(true);
       setTimeout(() => setSaved(false), 1500);
     } finally {
@@ -173,9 +180,9 @@ function ModalRatingCell({
   }
 
   return (
-    <div className="flex flex-col items-center bg-white rounded-lg p-3 border border-gray-100 gap-1.5">
-      <p className="text-xs text-gray-500 font-medium">{label}</p>
-      <div className="flex items-center gap-1">
+    <div className="flex flex-col bg-white rounded-lg p-3 border border-gray-100 gap-1.5">
+      <p className="text-xs text-gray-500 font-medium text-center">{label}</p>
+      <div className="flex items-center justify-center gap-1">
         <input
           type="number"
           min={1}
@@ -183,15 +190,24 @@ function ModalRatingCell({
           value={draft}
           placeholder="—"
           onChange={e => setDraft(e.target.value)}
-          onBlur={commit}
+          onBlur={() => commit()}
           onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); commit(); } }}
           onClick={e => e.stopPropagation()}
           className="w-12 text-center text-base font-semibold border border-gray-200 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent"
         />
         <span className="text-xs text-gray-400">/10</span>
       </div>
-      {saving && <span className="text-xs text-gray-400">lưu...</span>}
-      {saved && <span className="text-xs text-green-500">✓</span>}
+      <textarea
+        value={note}
+        onChange={e => setNote(e.target.value)}
+        onBlur={() => commit(note)}
+        onClick={e => e.stopPropagation()}
+        placeholder="Ghi chú..."
+        rows={2}
+        className="w-full text-xs text-gray-600 border border-gray-200 rounded-lg px-2 py-1 resize-none focus:outline-none focus:ring-1 focus:ring-red-400 placeholder-gray-300"
+      />
+      {saving && <span className="text-xs text-gray-400 text-center">lưu...</span>}
+      {saved && <span className="text-xs text-green-500 text-center">✓</span>}
     </div>
   );
 }
@@ -441,9 +457,10 @@ function FeedbackDetailModal({
     }
   }
 
-  async function saveRating(field: "user_priority" | "tu_danh_gia" | "tech_rating", val: number) {
+  async function saveRating(field: "user_priority" | "tu_danh_gia" | "tech_rating", val: number, note?: string) {
     if (!fb) return;
-    const updated = await api.feedbackRating.rate(fb.id, { [field]: val });
+    const noteField = (field + "_note") as "user_priority_note" | "tu_danh_gia_note" | "tech_rating_note";
+    const updated = await api.feedbackRating.rate(fb.id, { [field]: val, [noteField]: note ?? "" });
     setFb(prev => prev ? { ...prev, ...updated } : prev);
     onUpdated({ ...fb, ...updated });
   }

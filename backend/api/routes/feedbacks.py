@@ -313,8 +313,11 @@ async def analyze_feedback(
 
 class RateBody(BaseModel):
     user_priority: Optional[int] = None   # User rating 1-10
+    user_priority_note: Optional[str] = None
     tu_danh_gia: Optional[int] = None     # PO rating 1-10
+    tu_danh_gia_note: Optional[str] = None
     tech_rating: Optional[int] = None     # Dev rating 1-10 (1=lowest effort)
+    tech_rating_note: Optional[str] = None
 
 
 @router.patch("/{feedback_id}/rate")
@@ -335,14 +338,20 @@ async def rate_feedback(
         if not (1 <= body.user_priority <= 10):
             raise HTTPException(400, "user_priority phải từ 1-10")
         feedback.user_priority = body.user_priority
+    if body.user_priority_note is not None:
+        feedback.user_priority_note = body.user_priority_note
     if body.tu_danh_gia is not None:
         if not (1 <= body.tu_danh_gia <= 10):
             raise HTTPException(400, "tu_danh_gia phải từ 1-10")
         feedback.tu_danh_gia = body.tu_danh_gia
+    if body.tu_danh_gia_note is not None:
+        feedback.tu_danh_gia_note = body.tu_danh_gia_note
     if body.tech_rating is not None:
         if not (1 <= body.tech_rating <= 10):
             raise HTTPException(400, "tech_rating phải từ 1-10")
         feedback.tech_rating = body.tech_rating
+    if body.tech_rating_note is not None:
+        feedback.tech_rating_note = body.tech_rating_note
 
     weights = await _get_weights(db)
     feedback.priority_score = _compute_priority_score(

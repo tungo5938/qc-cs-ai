@@ -34,8 +34,11 @@ class FeedbackOut(BaseModel):
     gsheet_row_index: Optional[int] = None
     feedback_type: Optional[str] = None
     user_priority: Optional[int] = None
+    user_priority_note: Optional[str] = None
     tu_danh_gia: Optional[int] = None
+    tu_danh_gia_note: Optional[str] = None
     tech_rating: Optional[int] = None
+    tech_rating_note: Optional[str] = None
     priority_score: Optional[float] = None
     solution_id: Optional[str] = None
     created_at: datetime

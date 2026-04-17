@@ -131,7 +131,7 @@ export const api = {
       request<any>(`/api/solutions/${id}/chat`, { method: "POST", body: JSON.stringify({ message, jira_tickets: jiraTickets }) }),
   },
   feedbackRating: {
-    rate: (id: string, body: { user_priority?: number; tu_danh_gia?: number; tech_rating?: number }) =>
+    rate: (id: string, body: { user_priority?: number; user_priority_note?: string; tu_danh_gia?: number; tu_danh_gia_note?: string; tech_rating?: number; tech_rating_note?: string }) =>
       request<any>(`/api/feedbacks/${id}/rate`, { method: "PATCH", body: JSON.stringify(body) }),
     exportUrl: (params: { product_id?: string; status?: string; feedback_type?: string; fields: string }) => {
       const qs = new URLSearchParams();

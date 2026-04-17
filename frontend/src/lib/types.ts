@@ -135,8 +135,11 @@ export interface Feedback {
   media_urls?: string[] | null;
   submitted_by?: string | null;
   user_priority?: number | null;
+  user_priority_note?: string | null;
   tu_danh_gia?: number | null;
+  tu_danh_gia_note?: string | null;
   tech_rating?: number | null;
+  tech_rating_note?: string | null;
   priority_score?: number | null;
   gsheet_row_index?: number | null;
   analysis?: FeedbackAnalysis | null;
