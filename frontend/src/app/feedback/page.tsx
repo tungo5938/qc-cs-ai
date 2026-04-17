@@ -900,12 +900,31 @@ function ExportModal({
   );
 }
 
+const RATING_FILTERS = [
+  { value: "", label: "Tất cả" },
+  { value: "none", label: "Chưa ai đánh giá" },
+  { value: "no_user", label: "Chưa User" },
+  { value: "no_po", label: "Chưa PO" },
+  { value: "no_dev", label: "Chưa Dev" },
+];
+
+function applyRatingFilter(feedbacks: Feedback[], ratingFilter: string): Feedback[] {
+  switch (ratingFilter) {
+    case "none":    return feedbacks.filter(fb => fb.user_priority == null && fb.tu_danh_gia == null && fb.tech_rating == null);
+    case "no_user": return feedbacks.filter(fb => fb.user_priority == null);
+    case "no_po":   return feedbacks.filter(fb => fb.tu_danh_gia == null);
+    case "no_dev":  return feedbacks.filter(fb => fb.tech_rating == null);
+    default:        return feedbacks;
+  }
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FeedbackListPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [ratingFilter, setRatingFilter] = useState("");
   const [productId, setProductId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -960,8 +979,11 @@ export default function FeedbackListPage() {
     setFeedbacks(prev => prev.map(fb => fb.id === updated.id ? { ...fb, ...updated } : fb));
   }
 
+  const visibleFeedbacks = applyRatingFilter(feedbacks, ratingFilter);
+  const hasActiveFilter = statusFilter !== "" || typeFilter !== "" || ratingFilter !== "";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {showExport && (
         <ExportModal productId={productId} statusFilter={statusFilter} typeFilter={typeFilter} onClose={() => setShowExport(false)} />
       )}
@@ -973,49 +995,119 @@ export default function FeedbackListPage() {
         />
       )}
 
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Phản hồi</h1>
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-xl font-bold text-gray-900">Phản hồi</h1>
+          {!loading && (
+            <span className="text-sm text-gray-400">
+              {visibleFeedbacks.length}{feedbacks.length !== visibleFeedbacks.length ? `/${feedbacks.length}` : ""}
+            </span>
+          )}
+        </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowExport(true)} className="text-sm px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
-            ↓ Xuất Excel
+          <button onClick={() => setShowExport(true)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition">
+            ↓ Excel
           </button>
           {productId && (
-            <button onClick={handleSync} disabled={syncing} className="text-sm px-4 py-2 rounded-lg border border-green-300 text-green-700 hover:bg-green-50 transition disabled:opacity-50">
+            <button onClick={handleSync} disabled={syncing} className="text-xs px-3 py-1.5 rounded-lg border border-green-800 text-green-400 hover:bg-green-900/20 transition disabled:opacity-50">
               {syncing ? "Syncing..." : "Sync Sheet"}
             </button>
           )}
-          <Link href="/feedback/new" className="bg-red-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-700 transition font-medium">
-            + Thêm manual
+          <Link href="/feedback/new" className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-700 transition font-medium">
+            + Thêm
           </Link>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
-          {STATUS_TABS.map(tab => (
-            <button key={tab.value} onClick={() => handleStatusChange(tab.value)}
-              className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${statusFilter === tab.value ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
-              {tab.label}
-            </button>
-          ))}
+      {/* Filter bar */}
+      <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+        {/* Status */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-gray-500 w-14 shrink-0">Trạng thái</span>
+          <div className="flex flex-wrap gap-1">
+            {STATUS_TABS.map(tab => (
+              <button key={tab.value} onClick={() => handleStatusChange(tab.value)}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  statusFilter === tab.value
+                    ? "bg-red-600/20 text-red-400 ring-1 ring-red-600/40"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                }`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit flex-wrap">
-          {TYPE_TABS.map(tab => (
-            <button key={tab.value} onClick={() => handleTypeChange(tab.value)}
-              className={`text-xs px-3 py-1.5 rounded-md font-medium transition ${typeFilter === tab.value ? "bg-white shadow text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
-              {tab.label}
-            </button>
-          ))}
+
+        {/* Type */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-gray-500 w-14 shrink-0">Loại</span>
+          <div className="flex flex-wrap gap-1">
+            {TYPE_TABS.map(tab => (
+              <button key={tab.value} onClick={() => handleTypeChange(tab.value)}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  typeFilter === tab.value
+                    ? "bg-red-600/20 text-red-400 ring-1 ring-red-600/40"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                }`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
+
+        {/* Rating */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-gray-500 w-14 shrink-0">Đánh giá</span>
+          <div className="flex flex-wrap gap-1">
+            {RATING_FILTERS.map(tab => (
+              <button key={tab.value} onClick={() => setRatingFilter(tab.value)}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  ratingFilter === tab.value
+                    ? tab.value === "none"
+                      ? "bg-orange-600/20 text-orange-400 ring-1 ring-orange-600/40"
+                      : "bg-red-600/20 text-red-400 ring-1 ring-red-600/40"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                }`}>
+                {tab.label}
+                {tab.value !== "" && (
+                  <span className="ml-1 text-gray-600">
+                    {tab.value === "none"
+                      ? feedbacks.filter(fb => fb.user_priority == null && fb.tu_danh_gia == null && fb.tech_rating == null).length
+                      : tab.value === "no_user"
+                        ? feedbacks.filter(fb => fb.user_priority == null).length
+                        : tab.value === "no_po"
+                          ? feedbacks.filter(fb => fb.tu_danh_gia == null).length
+                          : feedbacks.filter(fb => fb.tech_rating == null).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Clear all */}
+        {hasActiveFilter && (
+          <div className="pt-1 border-t border-gray-800">
+            <button
+              onClick={() => { setStatusFilter(""); setTypeFilter(""); setRatingFilter(""); load(productId, "", ""); }}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+            >
+              ✕ Xoá tất cả bộ lọc
+            </button>
+          </div>
+        )}
       </div>
 
       {loading ? (
-        <div className="text-center py-16 text-gray-400">Đang tải...</div>
-      ) : feedbacks.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">Chưa có feedback nào.</div>
+        <div className="text-center py-16 text-gray-500">Đang tải...</div>
+      ) : visibleFeedbacks.length === 0 ? (
+        <div className="text-center py-16 text-gray-500">
+          {hasActiveFilter ? "Không có feedback nào khớp bộ lọc." : "Chưa có feedback nào."}
+        </div>
       ) : (
         <div className="space-y-3">
-          {feedbacks.map(fb => (
+          {visibleFeedbacks.map(fb => (
             <FeedbackCard key={fb.id} fb={fb} onRated={handleRated} onOpen={setOpenModalId} />
           ))}
         </div>
