@@ -17,6 +17,7 @@ def _calc_sprint(anchor: date, length_weeks: int, today: date) -> tuple[int, dat
     """Returns (sprint_number, start_date, end_date) for the sprint containing today."""
     delta_days = (today - anchor).days
     if delta_days < 0:
+        # today is before the anchor — series hasn't started yet, treat as sprint 1
         sprint_num = 1
     else:
         sprint_num = delta_days // (length_weeks * 7) + 1
@@ -45,7 +46,7 @@ async def upsert_sprint_config(
 ):
     """Create or replace sprint config for a product (one config per product)."""
     await db.execute(
-        delete(SprintConfig).where(SprintConfig.product_id == body.product_id)
+        delete(SprintConfig).where(SprintConfig.product_id.is_(body.product_id))
     )
     config = SprintConfig(
         id=gen_uuid(),
