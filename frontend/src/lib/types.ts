@@ -252,6 +252,43 @@ export interface DocumentChatMessage {
   actions?: DocumentAction[];
 }
 
+export interface MeetingTemplate {
+  id: string;
+  product_id: string | null;
+  product_name: string | null;
+  name: string;
+  ceremony_type: string; // "Meeting" | "Action"
+  day_of_week: number | null; // 1=Mon..7=Sun
+  week_in_sprint: number; // 0=every, 1-4
+  pic: string[] | null;
+  output_template: string | null;
+  created_at: string;
+}
+
+export interface SprintConfig {
+  id: string;
+  product_id: string | null;
+  anchor_date: string; // "YYYY-MM-DD"
+  sprint_length_weeks: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SprintInfo {
+  number: number;
+  start_date: string; // "YYYY-MM-DD"
+  end_date: string;
+}
+
+export interface SprintCurrentResponse {
+  config_id: string;
+  product_id: string | null;
+  anchor_date: string;
+  sprint_length_weeks: number;
+  current_sprint: SprintInfo;
+  next_sprint: SprintInfo;
+}
+
 export interface DashboardData {
   pending_feedbacks: number;
   overdue_actions: number;

@@ -192,6 +192,28 @@ export const api = {
       return request<any>(`/api/dashboard${query}`);
     },
   },
+  meetingTemplates: {
+    list: (product_id?: string) =>
+      request<any[]>(`/api/meeting-templates${product_id ? `?product_id=${product_id}` : ""}`),
+    create: (body: any) =>
+      request<any>("/api/meeting-templates", { method: "POST", body: JSON.stringify(body) }),
+    update: (id: string, body: any) =>
+      request<any>(`/api/meeting-templates/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+    delete: (id: string) =>
+      request<any>(`/api/meeting-templates/${id}`, { method: "DELETE" }),
+    seed: () =>
+      request<any>("/api/meeting-templates/seed", { method: "POST" }),
+    generate: (body: { sprint_start_date: string; product_id?: string }) =>
+      request<any>("/api/meeting-templates/generate-meetings", { method: "POST", body: JSON.stringify(body) }),
+  },
+  sprintConfigs: {
+    list: (product_id?: string) =>
+      request<any[]>(`/api/sprint-configs${product_id ? `?product_id=${product_id}` : ""}`),
+    upsert: (body: { product_id?: string | null; anchor_date: string; sprint_length_weeks: number }) =>
+      request<any>("/api/sprint-configs", { method: "POST", body: JSON.stringify(body) }),
+    current: (product_id?: string) =>
+      request<any>(`/api/sprint-configs/current${product_id ? `?product_id=${product_id}` : ""}`),
+  },
   documents: {
     list: (product_id?: string) =>
       request<any[]>(`/api/documents${product_id ? `?product_id=${product_id}` : ""}`),
