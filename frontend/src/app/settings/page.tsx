@@ -579,7 +579,7 @@ function SprintSeriesPanel({ productId }: { productId?: string }) {
         sprint_start_date: next_sprint.start_date,
         product_id: productId,
         sprint_number: next_sprint.number,
-      } as any) as any;
+      });
       setGenMsg(`Đã tạo ${res.created} meetings cho Sprint ${next_sprint.number}!`);
     } catch (e: any) {
       setError(e.message);

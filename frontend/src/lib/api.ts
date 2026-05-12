@@ -203,7 +203,7 @@ export const api = {
       request<any>(`/api/meeting-templates/${id}`, { method: "DELETE" }),
     seed: () =>
       request<any>("/api/meeting-templates/seed", { method: "POST" }),
-    generate: (body: { sprint_start_date: string; product_id?: string }) =>
+    generate: (body: { sprint_start_date: string; product_id?: string; sprint_number?: number }) =>
       request<any>("/api/meeting-templates/generate-meetings", { method: "POST", body: JSON.stringify(body) }),
   },
   sprintConfigs: {
