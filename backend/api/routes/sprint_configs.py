@@ -45,9 +45,11 @@ async def upsert_sprint_config(
     db: AsyncSession = Depends(get_db),
 ):
     """Create or replace sprint config for a product (one config per product)."""
-    await db.execute(
-        delete(SprintConfig).where(SprintConfig.product_id.is_(body.product_id))
-    )
+    if body.product_id is None:
+        condition = SprintConfig.product_id.is_(None)
+    else:
+        condition = SprintConfig.product_id == body.product_id
+    await db.execute(delete(SprintConfig).where(condition))
     config = SprintConfig(
         id=gen_uuid(),
         product_id=body.product_id,
