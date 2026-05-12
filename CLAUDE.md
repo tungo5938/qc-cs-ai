@@ -44,7 +44,57 @@ cd backend && python3 -m pytest tests/ -q
 4. Dùng `superpowers:subagent-driven-development` để implement
 5. Viết test cho tính năng mới: `backend/tests/test_<feature>.py`
 6. Chạy toàn bộ test suite: `pytest tests/ -q` → tất cả pass
-7. Merge vào main → smoke test prod
+7. **Chạy Playwright UI test** (xem bên dưới) → tất cả pass
+8. Merge vào main → smoke test prod
+
+### UI Testing với Playwright
+
+Playwright tests nằm ở `frontend/e2e/`. Cần frontend đang chạy ở localhost:3001.
+
+```bash
+# Chạy toàn bộ UI tests
+cd frontend && npx playwright test
+
+# Chạy test cho 1 file cụ thể
+cd frontend && npx playwright test e2e/<feature>.spec.ts
+
+# Xem UI (headed mode)
+cd frontend && npx playwright test --headed
+```
+
+**Setup auth trong Playwright test** — portal dùng sessionStorage, không dùng cookie:
+
+```ts
+// Luôn inject email trước khi navigate trang protected
+await page.goto('http://localhost:3000');
+await page.evaluate(() => {
+  sessionStorage.setItem('qc_user_email', 'tunm1@ghn.vn');
+});
+await page.goto('http://localhost:3000/admin'); // hoặc trang cần test
+```
+
+**Khi build tính năng mới có UI**, viết thêm `frontend/e2e/<feature>.spec.ts` bao gồm:
+- Happy path (golden path)
+- Edge cases chính
+- Không bị regression ở tính năng cũ
+
+**Cấu trúc file test mẫu:**
+
+```ts
+import { test, expect } from '@playwright/test';
+
+test.beforeEach(async ({ page }) => {
+  await page.goto('http://localhost:3000');
+  await page.evaluate(() => {
+    sessionStorage.setItem('qc_user_email', 'tunm1@ghn.vn');
+  });
+});
+
+test('feature works on happy path', async ({ page }) => {
+  await page.goto('http://localhost:3000/settings');
+  // ... assertions
+});
+```
 
 ### UAT thủ công (test với Telegram thật)
 
