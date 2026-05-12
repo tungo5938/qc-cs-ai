@@ -4,12 +4,12 @@ export const PM_EMAIL = "tunm1@ghn.vn";
 export const USER_EMAIL = "tester@ghn.vn";
 export const API = "http://localhost:8000";
 
-/** Set sessionStorage email so EmailGate passes */
-export async function loginAs(page: Page, email: string) {
-  await page.addInitScript((e) => {
-    sessionStorage.setItem("qc_user_email", e);
-  }, email);
-}
+/**
+ * No-op: auth is handled via storageState cookie in playwright.config.ts.
+ * Kept for backwards compatibility with existing test calls.
+ */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function loginAs(_page: Page, _email: string) {}
 
 /** Create an issue via API and return its id */
 export async function createTestIssue(title: string): Promise<string> {

@@ -10,6 +10,7 @@ export default defineConfig({
     headless: true,
     screenshot: "only-on-failure",
     video: "off",
+    storageState: "e2e/auth-state.json",
   },
   projects: [
     {
