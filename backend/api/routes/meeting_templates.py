@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional
-from datetime import date, timedelta
+from datetime import date, datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -280,7 +280,6 @@ async def generate_meetings(
             sprint_label = f" — Sprint {body.sprint_number}" if body.sprint_number else ""
             meeting_name = f"{t.name}{sprint_label} — {week_label}"
 
-            from datetime import datetime, timezone
             scheduled_at = datetime(
                 meeting_date.year, meeting_date.month, meeting_date.day,
                 9, 0, 0, tzinfo=timezone.utc
