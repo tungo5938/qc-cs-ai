@@ -4,6 +4,62 @@ Internal QC/PM feedback tool for GHN CS AI team. Telegram bot + stakeholder web 
 
 ---
 
+## IMPORTANT: Workflow Rules
+
+### Quy trình đầy đủ (local → prod)
+
+```
+1. Build feature trên branch (feat/xxx)
+   └─ Brainstorm → Spec doc → Implementation Plan → Subagent implement + review
+
+2. Test local (bắt buộc trước khi merge)
+   cd backend && python3 -m pytest tests/ -q
+   └─ Tất cả pass → được merge
+
+3. Merge vào main
+   git checkout main && git merge feat/xxx
+
+4. Railway tự deploy (~2 phút)
+
+5. Smoke test prod (3 clicks)
+   - /health → {"status":"ok"}
+   - Login được, load issue list
+   - Feature vừa build → click thử 1 lần
+```
+
+### Trước khi deploy — bắt buộc chạy automated tests
+
+```bash
+# Cần backend đang chạy ở localhost:8000
+cd backend && python3 -m pytest tests/ -q
+```
+
+**Toàn bộ 37 tests phải PASS.** Nếu có test FAIL → không deploy, fix trước.
+
+### Khi build tính năng mới
+
+1. Tạo feature branch: `git checkout -b feat/<tên>`
+2. Dùng `superpowers:brainstorming` → viết spec vào `docs/superpowers/specs/`
+3. Dùng `superpowers:writing-plans` → viết plan vào `docs/superpowers/plans/`
+4. Dùng `superpowers:subagent-driven-development` để implement
+5. Viết test cho tính năng mới: `backend/tests/test_<feature>.py`
+6. Chạy toàn bộ test suite: `pytest tests/ -q` → tất cả pass
+7. Merge vào main → smoke test prod
+
+### UAT thủ công (test với Telegram thật)
+
+```bash
+# Đảm bảo backend đang chạy trước
+cd backend && python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# Chạy UAT script
+python3 scripts/dev_local.py
+```
+
+Script tự động: mở tunnel → đăng ký webhook → hướng dẫn gửi tin nhắn → hiển thị kết quả real-time.
+
+---
+
 ## Running Locally
 
 ```bash
