@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useSession } from "next-auth/react";
 import { api } from "@/lib/api";
-import type { Product, PriorityConfig } from "@/lib/types";
+import type { Product, PriorityConfig, MeetingTemplate, SprintCurrentResponse } from "@/lib/types";
 
 // ── Access Control section (admin only) ───────────────────────────────────────
 
@@ -500,6 +500,579 @@ function productToForm(p: Product): ProductFormData {
   };
 }
 
+// ── Meeting Ceremony Config ────────────────────────────────────────────────────
+
+const VI_DAY_NAMES = ["Chủ nhật", "Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7"];
+
+function getDayOfWeekLabel(dateStr: string): { label: string; isMonday: boolean } {
+  if (!dateStr) return { label: "", isMonday: false };
+  const d = new Date(dateStr + "T00:00:00"); // avoid timezone shift
+  const dow = d.getDay(); // 0=Sun, 1=Mon
+  return { label: VI_DAY_NAMES[dow], isMonday: dow === 1 };
+}
+
+function fmtDateVN(dateStr: string): string {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}/${y}`;
+}
+
+function SprintSeriesPanel({ productId }: { productId?: string }) {
+  const [anchorDate, setAnchorDate] = useState("");
+  const [sprintLengthWeeks, setSprintLengthWeeks] = useState(2);
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [sprintInfo, setSprintInfo] = useState<SprintCurrentResponse | null>(null);
+  const [loadingCurrent, setLoadingCurrent] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [genMsg, setGenMsg] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const { label: dowLabel, isMonday } = getDayOfWeekLabel(anchorDate);
+
+  async function loadCurrent() {
+    setLoadingCurrent(true);
+    setError(null);
+    try {
+      const data = await api.sprintConfigs.current(productId) as SprintCurrentResponse;
+      setSprintInfo(data);
+      setAnchorDate(data.anchor_date);
+      setSprintLengthWeeks(data.sprint_length_weeks);
+    } catch {
+      setSprintInfo(null);
+    } finally {
+      setLoadingCurrent(false);
+    }
+  }
+
+  useEffect(() => { loadCurrent(); }, [productId]);
+
+  async function handleSave() {
+    if (!anchorDate) { setError("Chọn ngày bắt đầu sprint 1"); return; }
+    if (!isMonday) { setError("Ngày anchor phải là Thứ 2"); return; }
+    setSaving(true);
+    setError(null);
+    setSaveMsg(null);
+    try {
+      await api.sprintConfigs.upsert({
+        product_id: productId || null,
+        anchor_date: anchorDate,
+        sprint_length_weeks: sprintLengthWeeks,
+      });
+      setSaveMsg("Đã lưu cấu hình sprint!");
+      await loadCurrent();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleGenerateNext() {
+    if (!sprintInfo) return;
+    setGenerating(true);
+    setError(null);
+    setGenMsg(null);
+    try {
+      const { next_sprint } = sprintInfo;
+      const res = await api.meetingTemplates.generate({
+        sprint_start_date: next_sprint.start_date,
+        product_id: productId,
+        sprint_number: next_sprint.number,
+      } as any) as any;
+      setGenMsg(`Đã tạo ${res.created} meetings cho Sprint ${next_sprint.number}!`);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div className="px-5 py-4 border-b border-gray-100 bg-blue-50/40 space-y-4">
+      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Cấu hình Sprint Series</p>
+
+      <div className="flex flex-wrap items-end gap-4">
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Ngày bắt đầu Sprint 1</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={anchorDate}
+              onChange={(e) => { setAnchorDate(e.target.value); setSaveMsg(null); }}
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            />
+            {anchorDate && (
+              <span className={`text-xs font-medium px-2 py-1 rounded-full ${isMonday ? "bg-green-100 text-green-700" : "bg-red-100 text-red-600"}`}>
+                {dowLabel} {isMonday ? "✓" : "✗"}
+              </span>
+            )}
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Độ dài sprint</label>
+          <div className="flex gap-2">
+            {[2, 3, 4].map((w) => (
+              <button
+                key={w}
+                type="button"
+                onClick={() => setSprintLengthWeeks(w)}
+                className={`text-xs px-3 py-1.5 rounded-lg border transition ${
+                  sprintLengthWeeks === w
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "border-gray-200 text-gray-600 hover:border-gray-300 bg-white"
+                }`}
+              >
+                {w} tuần
+              </button>
+            ))}
+          </div>
+        </div>
+        <button
+          onClick={handleSave}
+          disabled={saving || !anchorDate || !isMonday}
+          className="px-4 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+        >
+          {saving ? "Đang lưu..." : "Lưu cấu hình"}
+        </button>
+        {saveMsg && <span className="text-xs text-green-600">{saveMsg}</span>}
+      </div>
+
+      {!isMonday && anchorDate && (
+        <p className="text-xs text-red-600">Vui lòng chọn Thứ 2 làm ngày bắt đầu sprint.</p>
+      )}
+
+      {loadingCurrent ? (
+        <p className="text-xs text-gray-400">Đang tải thông tin sprint...</p>
+      ) : sprintInfo ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="bg-white rounded-lg border border-gray-200 px-4 py-3">
+            <p className="text-xs text-gray-500 mb-1">Sprint hiện tại</p>
+            <p className="text-sm font-semibold text-gray-900">Sprint {sprintInfo.current_sprint.number}</p>
+            <p className="text-xs text-gray-500">
+              {fmtDateVN(sprintInfo.current_sprint.start_date)} – {fmtDateVN(sprintInfo.current_sprint.end_date)}
+            </p>
+          </div>
+          <div className="bg-white rounded-lg border border-blue-200 px-4 py-3">
+            <p className="text-xs text-blue-500 mb-1">Sprint tiếp theo</p>
+            <p className="text-sm font-semibold text-blue-700">Sprint {sprintInfo.next_sprint.number}</p>
+            <p className="text-xs text-gray-500">
+              {fmtDateVN(sprintInfo.next_sprint.start_date)} – {fmtDateVN(sprintInfo.next_sprint.end_date)}
+            </p>
+            <button
+              onClick={handleGenerateNext}
+              disabled={generating}
+              className="mt-2 px-3 py-1 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition"
+            >
+              {generating ? "Đang tạo..." : `Tạo lịch Sprint ${sprintInfo.next_sprint.number}`}
+            </button>
+            {genMsg && <p className="text-xs text-green-600 mt-1">{genMsg}</p>}
+          </div>
+        </div>
+      ) : (
+        <p className="text-xs text-gray-400 italic">Chưa có cấu hình. Nhập ngày anchor và lưu để bắt đầu.</p>
+      )}
+
+      {error && <p className="text-xs text-red-600">{error}</p>}
+    </div>
+  );
+}
+
+const DAY_LABELS: Record<number, string> = {
+  1: "Thứ 2", 2: "Thứ 3", 3: "Thứ 4", 4: "Thứ 5", 5: "Thứ 6", 6: "Thứ 7", 7: "Chủ nhật",
+};
+const WEEK_LABELS: Record<number, string> = {
+  0: "Hàng tuần", 1: "Tuần 1", 2: "Tuần 2", 3: "Tuần 3", 4: "Tuần 4",
+};
+
+type TemplateForm = {
+  product_id: string;
+  name: string;
+  ceremony_type: string;
+  day_of_week: number;
+  week_in_sprint: number;
+  pic: string[];
+  output_template: string;
+};
+
+function emptyTemplateForm(): TemplateForm {
+  return { product_id: "", name: "", ceremony_type: "Meeting", day_of_week: 1, week_in_sprint: 0, pic: [], output_template: "" };
+}
+
+function TemplateModal({
+  form,
+  products,
+  onChange,
+  onSave,
+  onClose,
+  saving,
+  title,
+}: {
+  form: TemplateForm;
+  products: Product[];
+  onChange: (f: TemplateForm) => void;
+  onSave: () => void;
+  onClose: () => void;
+  saving: boolean;
+  title: string;
+}) {
+  const [picInput, setPicInput] = useState("");
+
+  function addPic() {
+    const val = picInput.trim();
+    if (val && !form.pic.includes(val)) {
+      onChange({ ...form, pic: [...form.pic, val] });
+    }
+    setPicInput("");
+  }
+
+  function removePic(tag: string) {
+    onChange({ ...form, pic: form.pic.filter((p) => p !== tag) });
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl w-full max-w-lg shadow-xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h3 className="font-semibold text-gray-900">{title}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          {/* Product */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Sản phẩm</label>
+            <select
+              value={form.product_id}
+              onChange={(e) => onChange({ ...form, product_id: e.target.value })}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              <option value="">— Chọn sản phẩm —</option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          {/* Name */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Tên meeting</label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => onChange({ ...form, name: e.target.value })}
+              placeholder="Sprint Planning"
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+          {/* Type + Day + Week — row */}
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+              <select
+                value={form.ceremony_type}
+                onChange={(e) => onChange({ ...form, ceremony_type: e.target.value })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <option value="Meeting">Meeting</option>
+                <option value="Action">Action</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Ngày</label>
+              <select
+                value={form.day_of_week}
+                onChange={(e) => onChange({ ...form, day_of_week: Number(e.target.value) })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                {Object.entries(DAY_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Tuần sprint</label>
+              <select
+                value={form.week_in_sprint}
+                onChange={(e) => onChange({ ...form, week_in_sprint: Number(e.target.value) })}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                {Object.entries(WEEK_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {/* PIC tags */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">PIC</label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {form.pic.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 bg-red-50 text-red-700 text-xs px-2 py-0.5 rounded-full border border-red-100">
+                  {tag}
+                  <button onClick={() => removePic(tag)} className="hover:text-red-900 leading-none">×</button>
+                </span>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={picInput}
+                onChange={(e) => setPicInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addPic())}
+                placeholder="Thêm PIC rồi Enter..."
+                className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+              />
+              <button
+                onClick={addPic}
+                className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition"
+              >
+                +
+              </button>
+            </div>
+          </div>
+          {/* Output */}
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Output</label>
+            <textarea
+              value={form.output_template}
+              onChange={(e) => onChange({ ...form, output_template: e.target.value })}
+              rows={4}
+              placeholder="- [ ] ..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 px-6 pb-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm border border-gray-200 rounded-lg hover:border-gray-300 text-gray-600 transition">Hủy</button>
+          <button
+            onClick={onSave}
+            disabled={saving || !form.name.trim()}
+            className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition"
+          >
+            {saving ? "Đang lưu..." : "Lưu"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MeetingCeremony({ products }: { products: Product[] }) {
+  const [templates, setTemplates] = useState<MeetingTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [seedMsg, setSeedMsg] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [form, setForm] = useState<TemplateForm>(emptyTemplateForm());
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    try {
+      const data = await api.meetingTemplates.list();
+      setTemplates(data);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
+
+  async function handleSeed() {
+    if (!confirm("Xóa toàn bộ template hiện tại và import lại từ file mẫu CS AI & CS Chat?")) return;
+    setSeeding(true);
+    setError(null);
+    try {
+      const res = await api.meetingTemplates.seed();
+      setSeedMsg(`Đã seed ${res.seeded} templates cho: ${res.products.join(", ")}`);
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSeeding(false);
+    }
+  }
+
+  async function handleAdd() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.meetingTemplates.create({
+        ...form,
+        product_id: form.product_id || null,
+        day_of_week: form.day_of_week || null,
+      });
+      setShowAdd(false);
+      setForm(emptyTemplateForm());
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEdit() {
+    if (!editId) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.meetingTemplates.update(editId, {
+        ...form,
+        product_id: form.product_id || null,
+        day_of_week: form.day_of_week || null,
+      });
+      setEditId(null);
+      setForm(emptyTemplateForm());
+      await load();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Xóa template này?")) return;
+    try {
+      await api.meetingTemplates.delete(id);
+      setTemplates((prev) => prev.filter((t) => t.id !== id));
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  function startEdit(t: MeetingTemplate) {
+    setEditId(t.id);
+    setForm({
+      product_id: t.product_id || "",
+      name: t.name,
+      ceremony_type: t.ceremony_type,
+      day_of_week: t.day_of_week || 1,
+      week_in_sprint: t.week_in_sprint,
+      pic: t.pic || [],
+      output_template: t.output_template || "",
+    });
+  }
+
+  const grouped = templates.reduce<Record<number, MeetingTemplate[]>>((acc, t) => {
+    const key = t.week_in_sprint;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(t);
+    return acc;
+  }, {});
+
+  return (
+    <div className="border border-gray-200 rounded-xl bg-white mt-8">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-gray-900">Lịch Ceremony</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Cài đặt meeting cố định theo sprint 3 tuần</p>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSeed}
+            disabled={seeding}
+            className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:border-gray-300 text-gray-600 transition disabled:opacity-50"
+          >
+            {seeding ? "Đang import..." : "Import mẫu CS AI & CS Chat"}
+          </button>
+          <button
+            onClick={() => { setShowAdd(true); setEditId(null); setForm(emptyTemplateForm()); }}
+            className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+          >
+            + Thêm
+          </button>
+        </div>
+      </div>
+      {seedMsg && <div className="px-5 py-2 text-xs text-green-600 bg-green-50 border-b border-green-100">{seedMsg}</div>}
+
+      <SprintSeriesPanel />
+
+      {error && (
+        <div className="mx-5 mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700">{error}</div>
+      )}
+
+      <div className="p-5">
+        {loading ? (
+          <p className="text-sm text-gray-400 text-center py-4">Đang tải...</p>
+        ) : templates.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4 italic">
+            Chưa có template nào. Nhấn &quot;Import mẫu&quot; hoặc &quot;+ Thêm&quot; để bắt đầu.
+          </p>
+        ) : (
+          <div className="space-y-5">
+            {[0, 1, 2, 3, 4].filter((w) => grouped[w]?.length).map((week) => (
+              <div key={week}>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{WEEK_LABELS[week]}</p>
+                <div className="space-y-2">
+                  {grouped[week].map((t) => (
+                    <div key={t.id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${t.ceremony_type === "Meeting" ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700"}`}>
+                            {t.ceremony_type}
+                          </span>
+                          <span className="font-medium text-sm text-gray-900">{t.name}</span>
+                          {t.day_of_week && (
+                            <span className="text-xs text-gray-400">{DAY_LABELS[t.day_of_week]}</span>
+                          )}
+                          {t.product_name && (
+                            <span className="text-xs bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">{t.product_name}</span>
+                          )}
+                        </div>
+                        {(t.pic && t.pic.length > 0) && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {t.pic.map((p) => (
+                              <span key={p} className="text-xs bg-red-50 text-red-600 px-1.5 py-0.5 rounded-full border border-red-100">{p}</span>
+                            ))}
+                          </div>
+                        )}
+                        {t.output_template && (
+                          <p className="text-xs text-gray-400 mt-1 font-mono truncate">{t.output_template.split("\n")[0]}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => startEdit(t)}
+                          className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 border border-gray-200 rounded hover:border-gray-300 transition"
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          onClick={() => handleDelete(t.id)}
+                          className="text-xs text-red-400 hover:text-red-600 px-2 py-1 border border-red-100 rounded hover:border-red-200 transition"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {(showAdd || editId) && (
+        <TemplateModal
+          form={form}
+          products={products}
+          onChange={setForm}
+          onSave={editId ? handleEdit : handleAdd}
+          onClose={() => { setShowAdd(false); setEditId(null); setForm(emptyTemplateForm()); }}
+          saving={saving}
+          title={editId ? "Chỉnh sửa template" : "Thêm template mới"}
+        />
+      )}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { data: session } = useSession();
   const userEmail = session?.user?.email?.toLowerCase() || "";
@@ -783,6 +1356,8 @@ export default function SettingsPage() {
             )}
           </div>
         )}
+
+        <MeetingCeremony products={products} />
     </div>
   );
 }
