@@ -204,6 +204,8 @@ export interface ActionItem {
   output_url?: string | null;
   created_at: string;
   updated_at?: string;
+  phase_id?: string | null;
+  sprint_id?: string | null;
 }
 
 export interface MetabaseKpi {
@@ -305,4 +307,35 @@ export interface DashboardData {
     voice_ai: MetabaseKpi;
     source: string;
   };
+}
+
+// ── Roadmap ─────────────────────────────────────────────────────────────────
+
+export interface SprintTaskCounts {
+  total: number;
+  done: number;
+  overdue: number;
+}
+
+export interface RoadmapSprint {
+  id: string;
+  phase_id: string;
+  sprint_config_id: string | null;
+  name: string;
+  sprint_number: number | null;
+  start_date: string | null;
+  end_date: string | null;
+  order_index: number;
+  created_at: string;
+  task_counts: SprintTaskCounts;
+}
+
+export interface RoadmapPhase {
+  id: string;
+  product_id: string;
+  name: string;
+  description: string | null;
+  order_index: number;
+  created_at: string;
+  sprints: RoadmapSprint[];
 }

@@ -1,3 +1,5 @@
+import type { RoadmapPhase, RoadmapSprint, ActionItem } from "./types";
+
 // All API calls go through the Next.js /proxy rewrite.
 // In dev: /proxy/* → http://localhost:8000/* (via next.config.ts rewrite)
 // In prod: /proxy/* → http://backend.railway.internal:8080/* (internal network)
@@ -229,5 +231,33 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ message, tagged_document_ids }),
       }),
+  },
+  roadmap: {
+    listPhases: (product_id: string) =>
+      request<RoadmapPhase[]>(`/api/roadmap/phases?product_id=${encodeURIComponent(product_id)}`),
+    createPhase: (body: { product_id: string; name: string; description?: string }) =>
+      request<RoadmapPhase>("/api/roadmap/phases", { method: "POST", body: JSON.stringify(body) }),
+    updatePhase: (id: string, body: { name?: string; description?: string; order_index?: number }) =>
+      request<RoadmapPhase>(`/api/roadmap/phases/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    deletePhase: (id: string) =>
+      request<void>(`/api/roadmap/phases/${id}`, { method: "DELETE" }),
+    createSprint: (body: {
+      phase_id: string;
+      sprint_config_id?: string | null;
+      name: string;
+      sprint_number?: number | null;
+      start_date?: string | null;
+      end_date?: string | null;
+      order_index?: number;
+    }) =>
+      request<RoadmapSprint>("/api/roadmap/sprints", { method: "POST", body: JSON.stringify(body) }),
+    updateSprint: (id: string, body: { name?: string; start_date?: string | null; end_date?: string | null; order_index?: number }) =>
+      request<RoadmapSprint>(`/api/roadmap/sprints/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    deleteSprint: (id: string) =>
+      request<void>(`/api/roadmap/sprints/${id}`, { method: "DELETE" }),
+    listTasks: (params: { sprint_id?: string; phase_id?: string }) => {
+      const qs = new URLSearchParams(params as Record<string, string>).toString();
+      return request<ActionItem[]>(`/api/roadmap/tasks?${qs}`);
+    },
   },
 };
