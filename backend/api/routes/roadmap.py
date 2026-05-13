@@ -90,7 +90,7 @@ async def update_phase(phase_id: str, body: PhaseUpdate, db: AsyncSession = Depe
     phase = result.scalar_one_or_none()
     if not phase:
         raise HTTPException(404, "Phase not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    for field, value in body.model_dump(exclude_unset=True).items():
         setattr(phase, field, value)
     await db.commit()
     # Re-fetch sprints explicitly (avoid lazy-load greenlet issue)
@@ -160,7 +160,7 @@ async def update_sprint(sprint_id: str, body: SprintUpdate, db: AsyncSession = D
     sprint = result.scalar_one_or_none()
     if not sprint:
         raise HTTPException(404, "Sprint not found")
-    for field, value in body.model_dump(exclude_none=True).items():
+    for field, value in body.model_dump(exclude_unset=True).items():
         setattr(sprint, field, value)
     await db.commit()
     await db.refresh(sprint)

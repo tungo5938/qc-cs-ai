@@ -10,8 +10,20 @@ import httpx
 
 BASE_URL = "http://localhost:8000"
 
-# CS AI product (verified from DB)
-PRODUCT_ID = "a47913fb-3cda-473d-912a-a388682556e7"
+
+def _get_product_id() -> str:
+    """Get a real product ID from the API."""
+    try:
+        r = httpx.get(f"{BASE_URL}/api/products", timeout=10)
+        products = r.json()
+        if products:
+            return products[0]["id"]
+    except Exception:
+        pass
+    return "a47913fb-3cda-473d-912a-a388682556e7"  # fallback
+
+
+PRODUCT_ID = _get_product_id()
 
 
 @pytest.fixture(scope="module")

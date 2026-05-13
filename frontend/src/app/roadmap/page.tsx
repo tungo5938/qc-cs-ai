@@ -368,6 +368,7 @@ export default function RoadmapPage() {
     }
     return "cs-ai";
   });
+  const [productIdMap, setProductIdMap] = useState<Record<string, string>>({});
   const [phases, setPhases] = useState<RoadmapPhase[]>([]);
   const [tasksBySprintId, setTasksBySprintId] = useState<Record<string, ActionItem[]>>({});
   const [loading, setLoading] = useState(false);
@@ -381,10 +382,22 @@ export default function RoadmapPage() {
   >(null);
   const [taskModal, setTaskModal] = useState<null | { phaseId: string; sprintId: string }>(null);
 
+  useEffect(() => {
+    api.products.list().then((products: any[]) => {
+      const map: Record<string, string> = {};
+      for (const p of products) {
+        const slug = p.name.toLowerCase().replace(/\s+/g, "-");
+        map[slug] = p.id;
+      }
+      setProductIdMap(map);
+    }).catch(() => {});
+  }, []);
+
   const loadPhases = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await api.roadmap.listPhases(productId);
+      const realProductId = productIdMap[productId] ?? productId;
+      const data = await api.roadmap.listPhases(realProductId);
       setPhases(data);
       // Load tasks for all sprints
       const allSprints = data.flatMap((p) => p.sprints);
@@ -401,7 +414,7 @@ export default function RoadmapPage() {
     } finally {
       setLoading(false);
     }
-  }, [productId]);
+  }, [productId, productIdMap]);
 
   useEffect(() => {
     loadPhases();
@@ -549,7 +562,7 @@ export default function RoadmapPage() {
           onClose={() => setPhaseModal(null)}
           onSave={async (name, description) => {
             if (phaseModal.mode === "create") {
-              await api.roadmap.createPhase({ product_id: productId, name, description });
+              await api.roadmap.createPhase({ product_id: productIdMap[productId] ?? productId, name, description });
             } else {
               await api.roadmap.updatePhase(phaseModal.phase.id, { name, description });
             }
@@ -585,7 +598,7 @@ export default function RoadmapPage() {
         <CreateTaskModal
           phaseId={taskModal.phaseId}
           sprintId={taskModal.sprintId}
-          productId={productId}
+          productId={productIdMap[productId] ?? productId}
           onClose={() => setTaskModal(null)}
           onCreated={() => {
             setTaskModal(null);
