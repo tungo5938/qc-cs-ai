@@ -8,43 +8,29 @@ Tests for Roadmap API:
 import pytest
 import httpx
 
-BASE_URL = "http://localhost:8000"
-
-
-def _get_product_id() -> str:
-    """Get a real product ID from the API."""
-    try:
-        r = httpx.get(f"{BASE_URL}/api/products", timeout=10)
-        products = r.json()
-        if products:
-            return products[0]["id"]
-    except Exception:
-        pass
-    return "a47913fb-3cda-473d-912a-a388682556e7"  # fallback
-
-
-PRODUCT_ID = _get_product_id()
-
 
 @pytest.fixture(scope="module")
-def client():
-    with httpx.Client(base_url=BASE_URL, timeout=30) as c:
-        yield c
+def product_id(client) -> str:
+    r = client.get("/api/products")
+    assert r.status_code == 200, f"Could not fetch products: {r.text}"
+    products = r.json()
+    assert len(products) > 0, "No products in DB"
+    return products[0]["id"]
 
 
 @pytest.fixture
-def phase_and_sprint(client):
+def phase_and_sprint(client, product_id):
     """Creates a phase + sprint, yields (phase, sprint), deletes phase on teardown."""
-    phase = create_phase(client, name="Fixture Phase")
+    phase = create_phase(client, product_id, name="Fixture Phase")
     sprint = create_sprint(client, phase["id"])
     yield phase, sprint
     # Phase delete cascades to sprint
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def create_phase(client, name="Test Phase") -> dict:
+def create_phase(client, product_id, name="Test Phase") -> dict:
     r = client.post("/api/roadmap/phases", json={
-        "product_id": PRODUCT_ID,
+        "product_id": product_id,
         "name": name,
         "description": "Test description",
     })
@@ -63,9 +49,9 @@ def create_sprint(client, phase_id: str, name="Sprint 1") -> dict:
     return r.json()
 
 
-def create_action_item(client, phase_id: str, sprint_id: str) -> dict:
+def create_action_item(client, product_id, phase_id: str, sprint_id: str) -> dict:
     r = client.post("/api/action-items", json={
-        "product_id": PRODUCT_ID,
+        "product_id": product_id,
         "title": "Roadmap task",
         "phase_id": phase_id,
         "sprint_id": sprint_id,
@@ -76,18 +62,18 @@ def create_action_item(client, phase_id: str, sprint_id: str) -> dict:
 
 # ── Phase CRUD ────────────────────────────────────────────────────────────────
 
-def test_create_phase(client):
-    phase = create_phase(client)
+def test_create_phase(client, product_id):
+    phase = create_phase(client, product_id)
     assert phase["name"] == "Test Phase"
-    assert phase["product_id"] == PRODUCT_ID
+    assert phase["product_id"] == product_id
     assert phase["sprints"] == []
     # Cleanup
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def test_list_phases(client):
-    phase = create_phase(client, name="Phase List Test")
-    r = client.get(f"/api/roadmap/phases?product_id={PRODUCT_ID}")
+def test_list_phases(client, product_id):
+    phase = create_phase(client, product_id, name="Phase List Test")
+    r = client.get(f"/api/roadmap/phases?product_id={product_id}")
     assert r.status_code == 200
     ids = [p["id"] for p in r.json()]
     assert phase["id"] in ids
@@ -95,8 +81,8 @@ def test_list_phases(client):
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def test_update_phase(client):
-    phase = create_phase(client)
+def test_update_phase(client, product_id):
+    phase = create_phase(client, product_id)
     r = client.patch(f"/api/roadmap/phases/{phase['id']}", json={"name": "Updated Phase"})
     assert r.status_code == 200
     assert r.json()["name"] == "Updated Phase"
@@ -104,19 +90,19 @@ def test_update_phase(client):
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def test_delete_phase(client):
-    phase = create_phase(client)
+def test_delete_phase(client, product_id):
+    phase = create_phase(client, product_id)
     r = client.delete(f"/api/roadmap/phases/{phase['id']}")
     assert r.status_code == 204
-    r2 = client.get(f"/api/roadmap/phases?product_id={PRODUCT_ID}")
+    r2 = client.get(f"/api/roadmap/phases?product_id={product_id}")
     ids = [p["id"] for p in r2.json()]
     assert phase["id"] not in ids
 
 
 # ── Sprint CRUD ───────────────────────────────────────────────────────────────
 
-def test_create_sprint(client):
-    phase = create_phase(client)
+def test_create_sprint(client, product_id):
+    phase = create_phase(client, product_id)
     sprint = create_sprint(client, phase["id"])
     assert sprint["phase_id"] == phase["id"]
     assert sprint["name"] == "Sprint 1"
@@ -127,8 +113,8 @@ def test_create_sprint(client):
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def test_update_sprint(client):
-    phase = create_phase(client)
+def test_update_sprint(client, product_id):
+    phase = create_phase(client, product_id)
     sprint = create_sprint(client, phase["id"])
     r = client.patch(f"/api/roadmap/sprints/{sprint['id']}", json={"name": "Sprint Updated"})
     assert r.status_code == 200
@@ -137,8 +123,8 @@ def test_update_sprint(client):
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def test_delete_sprint(client):
-    phase = create_phase(client)
+def test_delete_sprint(client, product_id):
+    phase = create_phase(client, product_id)
     sprint = create_sprint(client, phase["id"])
     r = client.delete(f"/api/roadmap/sprints/{sprint['id']}")
     assert r.status_code == 204
@@ -148,9 +134,9 @@ def test_delete_sprint(client):
 
 # ── Task assignment ───────────────────────────────────────────────────────────
 
-def test_task_appears_in_sprint(client, phase_and_sprint):
+def test_task_appears_in_sprint(client, product_id, phase_and_sprint):
     phase, sprint = phase_and_sprint
-    task = create_action_item(client, phase["id"], sprint["id"])
+    task = create_action_item(client, product_id, phase["id"], sprint["id"])
     assert task["phase_id"] == phase["id"]
     assert task["sprint_id"] == sprint["id"]
 
@@ -160,7 +146,7 @@ def test_task_appears_in_sprint(client, phase_and_sprint):
     assert task["id"] in task_ids
 
     # task_counts reflect task
-    sprint_r = client.get(f"/api/roadmap/phases?product_id={PRODUCT_ID}")
+    sprint_r = client.get(f"/api/roadmap/phases?product_id={product_id}")
     phases = sprint_r.json()
     target_phase = next(p for p in phases if p["id"] == phase["id"])
     target_sprint = next(s for s in target_phase["sprints"] if s["id"] == sprint["id"])
@@ -170,10 +156,10 @@ def test_task_appears_in_sprint(client, phase_and_sprint):
     client.delete(f"/api/action-items/{task['id']}")
 
 
-def test_delete_phase_nullifies_task_phase_id(client, phase_and_sprint):
+def test_delete_phase_nullifies_task_phase_id(client, product_id, phase_and_sprint):
     """Deleting a phase sets phase_id = null on its tasks (tasks not deleted)."""
     phase, sprint = phase_and_sprint
-    task = create_action_item(client, phase["id"], sprint["id"])
+    task = create_action_item(client, product_id, phase["id"], sprint["id"])
 
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
