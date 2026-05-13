@@ -93,7 +93,14 @@ async def update_phase(phase_id: str, body: PhaseUpdate, db: AsyncSession = Depe
     for field, value in body.model_dump(exclude_none=True).items():
         setattr(phase, field, value)
     await db.commit()
-    await db.refresh(phase)
+    # Re-fetch sprints explicitly (avoid lazy-load greenlet issue)
+    sprint_result = await db.execute(
+        select(RoadmapSprint)
+        .where(RoadmapSprint.phase_id == phase_id)
+        .order_by(RoadmapSprint.order_index)
+    )
+    sprints = sprint_result.scalars().all()
+    enriched_sprints = [await _enrich_sprint(s, db) for s in sprints]
     return PhaseOut(
         id=phase.id,
         product_id=phase.product_id,
@@ -101,7 +108,7 @@ async def update_phase(phase_id: str, body: PhaseUpdate, db: AsyncSession = Depe
         description=phase.description,
         order_index=phase.order_index,
         created_at=phase.created_at,
-        sprints=[],
+        sprints=enriched_sprints,
     )
 
 

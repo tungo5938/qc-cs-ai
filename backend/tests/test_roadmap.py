@@ -20,6 +20,16 @@ def client():
         yield c
 
 
+@pytest.fixture
+def phase_and_sprint(client):
+    """Creates a phase + sprint, yields (phase, sprint), deletes phase on teardown."""
+    phase = create_phase(client, name="Fixture Phase")
+    sprint = create_sprint(client, phase["id"])
+    yield phase, sprint
+    # Phase delete cascades to sprint
+    client.delete(f"/api/roadmap/phases/{phase['id']}")
+
+
 def create_phase(client, name="Test Phase") -> dict:
     r = client.post("/api/roadmap/phases", json={
         "product_id": PRODUCT_ID,
@@ -126,9 +136,8 @@ def test_delete_sprint(client):
 
 # ── Task assignment ───────────────────────────────────────────────────────────
 
-def test_task_appears_in_sprint(client):
-    phase = create_phase(client)
-    sprint = create_sprint(client, phase["id"])
+def test_task_appears_in_sprint(client, phase_and_sprint):
+    phase, sprint = phase_and_sprint
     task = create_action_item(client, phase["id"], sprint["id"])
     assert task["phase_id"] == phase["id"]
     assert task["sprint_id"] == sprint["id"]
@@ -145,24 +154,23 @@ def test_task_appears_in_sprint(client):
     target_sprint = next(s for s in target_phase["sprints"] if s["id"] == sprint["id"])
     assert target_sprint["task_counts"]["total"] == 1
 
-    # Cleanup
+    # Cleanup task (phase/sprint cleaned up by fixture)
     client.delete(f"/api/action-items/{task['id']}")
-    client.delete(f"/api/roadmap/phases/{phase['id']}")
 
 
-def test_delete_phase_nullifies_task_phase_id(client):
+def test_delete_phase_nullifies_task_phase_id(client, phase_and_sprint):
     """Deleting a phase sets phase_id = null on its tasks (tasks not deleted)."""
-    phase = create_phase(client)
-    sprint = create_sprint(client, phase["id"])
+    phase, sprint = phase_and_sprint
     task = create_action_item(client, phase["id"], sprint["id"])
 
     client.delete(f"/api/roadmap/phases/{phase['id']}")
 
-    # Task still exists but phase_id is null
+    # Task still exists but phase_id and sprint_id are null
     r = client.get(f"/api/action-items/{task['id']}")
     assert r.status_code == 200
     body = r.json()
     assert body["phase_id"] is None
+    assert body["sprint_id"] is None
 
-    # Cleanup
+    # Cleanup task
     client.delete(f"/api/action-items/{task['id']}")
