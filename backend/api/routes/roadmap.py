@@ -1,5 +1,5 @@
 from __future__ import annotations
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select, delete
@@ -106,7 +106,6 @@ async def create_sprint(body: SprintCreate, db: AsyncSession = Depends(get_db)):
         )
         config = cfg_result.scalar_one_or_none()
         if config and sprint_number:
-            from datetime import timedelta
             start_date = config.anchor_date + timedelta(weeks=(sprint_number - 1) * config.sprint_length_weeks)
             end_date = start_date + timedelta(weeks=config.sprint_length_weeks) - timedelta(days=1)
 
