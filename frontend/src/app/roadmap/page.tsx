@@ -279,6 +279,128 @@ function CreateTaskModal({
   );
 }
 
+function EditTaskModal({
+  task,
+  onClose,
+  onSaved,
+}: {
+  task: ActionItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [form, setForm] = useState({
+    title: task.title,
+    assignee: task.assignee ?? "",
+    deadline: task.deadline ?? "",
+    status: task.status,
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.actionItems.update(task.id, {
+        title: form.title,
+        assignee: form.assignee || null,
+        deadline: form.deadline || null,
+        status: form.status,
+      });
+      onSaved();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const STATUS_OPTIONS = [
+    { value: "todo", label: "Todo" },
+    { value: "confirmed", label: "Confirmed" },
+    { value: "in_progress", label: "In Progress" },
+    { value: "done", label: "Done" },
+    { value: "cancelled", label: "Cancelled" },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+      <div className="bg-gray-900 border border-gray-700 rounded-xl w-full max-w-md p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold text-lg">Chỉnh sửa Task</h2>
+          <a
+            href={`/actions`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-gray-500 hover:text-red-400 flex items-center gap-1 transition-colors"
+            title="Xem trong Action Items"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Actions
+          </a>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Tiêu đề</label>
+            <input
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              required
+              autoFocus
+            />
+          </div>
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Status</label>
+            <select
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value as any })}
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Assignee</label>
+            <input
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+              value={form.assignee}
+              onChange={(e) => setForm({ ...form, assignee: e.target.value })}
+            />
+          </div>
+          <div>
+            <label className="text-sm text-gray-400 mb-1 block">Deadline</label>
+            <input
+              type="date"
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-1 focus:ring-red-500"
+              value={form.deadline}
+              onChange={(e) => setForm({ ...form, deadline: e.target.value })}
+            />
+          </div>
+          {error && <p className="text-red-400 text-sm">{error}</p>}
+          <div className="flex gap-2 justify-end">
+            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition-colors">
+              Huỷ
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium disabled:opacity-50"
+            >
+              {saving ? "Đang lưu..." : "Lưu"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function SprintRow({
   sprint,
   isPM,
@@ -286,6 +408,7 @@ function SprintRow({
   onDelete,
   onAddTask,
   tasks,
+  onTaskUpdated,
 }: {
   sprint: RoadmapSprint;
   isPM: boolean;
@@ -293,12 +416,20 @@ function SprintRow({
   onDelete: () => void;
   onAddTask: () => void;
   tasks: ActionItem[];
+  onTaskUpdated: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [editingTask, setEditingTask] = useState<ActionItem | null>(null);
   const dateRange =
     sprint.start_date && sprint.end_date
       ? `${sprint.start_date} – ${sprint.end_date}`
       : sprint.start_date || "";
+
+  async function handleDeleteTask(taskId: string) {
+    if (!confirm("Xoá task này?")) return;
+    await api.actionItems.delete(taskId);
+    onTaskUpdated();
+  }
 
   return (
     <div className="ml-4 border-l border-gray-700 pl-4 mb-2">
@@ -316,42 +447,66 @@ function SprintRow({
         </span>
         {isPM && (
           <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={onAddTask}
-              className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
-            >
+            <button onClick={onAddTask} className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">
               + Task
             </button>
-            <button
-              onClick={onEdit}
-              className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
-            >
+            <button onClick={onEdit} className="text-xs px-2 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded">
               Edit
             </button>
-            <button
-              onClick={onDelete}
-              className="text-xs px-2 py-0.5 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded"
-            >
+            <button onClick={onDelete} className="text-xs px-2 py-0.5 bg-red-900/40 hover:bg-red-900/60 text-red-400 rounded">
               Delete
             </button>
           </div>
         )}
       </div>
       {expanded && tasks.length > 0 && (
-        <div className="ml-6 space-y-1 mt-1">
+        <div className="ml-6 space-y-0.5 mt-1">
           {tasks.map((task) => (
-            <div key={task.id} className="flex items-center gap-3 py-1 text-sm text-gray-400">
-              <span>☐</span>
-              <span className="text-gray-200 flex-1">{task.title}</span>
-              {task.assignee && <span className="text-xs text-gray-500">{task.assignee}</span>}
-              {task.deadline && <span className="text-xs text-gray-500">{task.deadline}</span>}
+            <div key={task.id} className="flex items-center gap-2 py-1 text-sm group/task">
+              <span className="text-gray-600 text-xs">☐</span>
+              <span className="text-gray-200 flex-1 min-w-0 truncate">{task.title}</span>
+              {task.assignee && <span className="text-xs text-gray-500 shrink-0">{task.assignee}</span>}
+              {task.deadline && (
+                <span className={`text-xs shrink-0 ${new Date(task.deadline) < new Date() && task.status !== "done" ? "text-red-400" : "text-gray-500"}`}>
+                  {task.deadline}
+                </span>
+              )}
               <StatusBadge status={task.status} />
+              <div className="flex items-center gap-1 opacity-0 group-hover/task:opacity-100 transition-opacity shrink-0">
+                <button
+                  onClick={() => setEditingTask(task)}
+                  className="text-xs px-1.5 py-0.5 bg-gray-700 hover:bg-gray-600 text-gray-300 rounded"
+                  title="Chỉnh sửa task"
+                >
+                  Edit
+                </button>
+                {isPM && (
+                  <button
+                    onClick={() => handleDeleteTask(task.id)}
+                    className="text-xs px-1.5 py-0.5 bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded"
+                    title="Xoá task"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
       )}
       {expanded && tasks.length === 0 && (
         <p className="ml-6 text-xs text-gray-600 py-1">Chưa có task</p>
+      )}
+
+      {editingTask && (
+        <EditTaskModal
+          task={editingTask}
+          onClose={() => setEditingTask(null)}
+          onSaved={() => {
+            setEditingTask(null);
+            onTaskUpdated();
+          }}
+        />
       )}
     </div>
   );
@@ -535,6 +690,7 @@ export default function RoadmapPage() {
                     onEdit={() => setSprintModal({ mode: "edit", sprint })}
                     onDelete={() => handleDeleteSprint(sprint.id)}
                     onAddTask={() => setTaskModal({ phaseId: phase.id, sprintId: sprint.id })}
+                    onTaskUpdated={loadPhases}
                   />
                 ))}
                 {phase.sprints.length === 0 && (
