@@ -53,8 +53,15 @@ async def list_phases(product_id: str, db: AsyncSession = Depends(get_db)):
             .order_by(RoadmapSprint.order_index)
         )
         sprints = sprint_result.scalars().all()
-        phase_out = PhaseOut.model_validate(phase)
-        phase_out.sprints = [await _enrich_sprint(s, db) for s in sprints]
+        phase_out = PhaseOut(
+            id=phase.id,
+            product_id=phase.product_id,
+            name=phase.name,
+            description=phase.description,
+            order_index=phase.order_index,
+            created_at=phase.created_at,
+            sprints=[await _enrich_sprint(s, db) for s in sprints],
+        )
         out.append(phase_out)
     return out
 
@@ -66,9 +73,15 @@ async def create_phase(body: PhaseCreate, db: AsyncSession = Depends(get_db)):
     await db.flush()
     await db.commit()
     await db.refresh(phase)
-    phase_out = PhaseOut.model_validate(phase)
-    phase_out.sprints = []
-    return phase_out
+    return PhaseOut(
+        id=phase.id,
+        product_id=phase.product_id,
+        name=phase.name,
+        description=phase.description,
+        order_index=phase.order_index,
+        created_at=phase.created_at,
+        sprints=[],
+    )
 
 
 @router.patch("/phases/{phase_id}")
@@ -81,7 +94,15 @@ async def update_phase(phase_id: str, body: PhaseUpdate, db: AsyncSession = Depe
         setattr(phase, field, value)
     await db.commit()
     await db.refresh(phase)
-    return PhaseOut.model_validate(phase)
+    return PhaseOut(
+        id=phase.id,
+        product_id=phase.product_id,
+        name=phase.name,
+        description=phase.description,
+        order_index=phase.order_index,
+        created_at=phase.created_at,
+        sprints=[],
+    )
 
 
 @router.delete("/phases/{phase_id}", status_code=204)
