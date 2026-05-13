@@ -13,6 +13,8 @@ from models.meeting import Meeting
 from models.meeting_note import MeetingNote
 from models.action_item import ActionItem
 from models.allowed_email import AllowedEmail
+from models.roadmap_phase import RoadmapPhase
+from models.roadmap_sprint import RoadmapSprint
 
 __all__ = [
     "Issue", "IssueType", "IssueStatus", "IssuePriority", "IssueSource",
@@ -30,4 +32,6 @@ __all__ = [
     "MeetingNote",
     "ActionItem",
     "AllowedEmail",
+    "RoadmapPhase",
+    "RoadmapSprint",
 ]

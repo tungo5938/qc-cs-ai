@@ -1,4 +1,5 @@
 from __future__ import annotations
+from datetime import date
 from typing import Optional, TYPE_CHECKING
 from sqlalchemy import String, Integer, Date, DateTime, ForeignKey, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -21,8 +22,8 @@ class RoadmapSprint(Base):
     )
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     sprint_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    start_date: Mapped[Optional[object]] = mapped_column(Date, nullable=True)
-    end_date: Mapped[Optional[object]] = mapped_column(Date, nullable=True)
+    start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    end_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     order_index: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

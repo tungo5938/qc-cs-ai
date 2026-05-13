@@ -7,6 +7,7 @@ from models.base import gen_uuid
 
 if TYPE_CHECKING:
     from models.roadmap_sprint import RoadmapSprint
+    from models.product import Product
 
 
 class RoadmapPhase(Base):
@@ -26,3 +27,4 @@ class RoadmapPhase(Base):
     sprints: Mapped[list["RoadmapSprint"]] = relationship(
         "RoadmapSprint", back_populates="phase", cascade="all, delete-orphan"
     )
+    product: Mapped[Optional["Product"]] = relationship("Product", foreign_keys=[product_id])
