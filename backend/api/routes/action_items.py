@@ -53,12 +53,23 @@ async def create_action_item(
         deadline=body.deadline,
         source_meeting_id=body.source_meeting_id,
         source_feedback_id=body.source_feedback_id,
+        phase_id=body.phase_id,
+        sprint_id=body.sprint_id,
         status="todo",
     )
     db.add(item)
     await db.flush()
     await db.commit()
     await db.refresh(item)
+    return ActionItemOut.model_validate(item).model_dump()
+
+
+@router.get("/{item_id}")
+async def get_action_item(item_id: str, db: AsyncSession = Depends(get_db)):
+    result = await db.execute(select(ActionItem).where(ActionItem.id == item_id))
+    item = result.scalar_one_or_none()
+    if not item:
+        raise HTTPException(404, "Action item not found")
     return ActionItemOut.model_validate(item).model_dump()
 
 

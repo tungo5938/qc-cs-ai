@@ -14,6 +14,8 @@ class ActionItemOut(BaseModel):
     output_url: Optional[str] = None
     source_meeting_id: Optional[str] = None
     source_feedback_id: Optional[str] = None
+    phase_id: Optional[str] = None
+    sprint_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -29,6 +31,8 @@ class ActionItemCreate(BaseModel):
     output_url: Optional[str] = None
     source_meeting_id: Optional[str] = None
     source_feedback_id: Optional[str] = None
+    phase_id: Optional[str] = None
+    sprint_id: Optional[str] = None
 
 
 class ActionItemUpdate(BaseModel):
