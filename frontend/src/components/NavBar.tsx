@@ -17,6 +17,7 @@ const NAV_LINKS = [
   { href: "/", label: "Dashboard" },
   { href: "/feedback", label: "Phản hồi" },
   { href: "/solutions", label: "Solutions" },
+  { href: "/roadmap", label: "Roadmap" },
   { href: "/meetings", label: "Meetings" },
   { href: "/actions", label: "Actions" },
   { href: "/documents", label: "Documents" },
