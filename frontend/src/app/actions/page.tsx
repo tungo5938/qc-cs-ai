@@ -360,6 +360,15 @@ export default function ActionsPage() {
                         {item.meeting_name}
                       </Link>
                     )}
+                    {item.phase_id && (
+                      <Link
+                        href="/roadmap"
+                        className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors font-medium"
+                        title="Task này thuộc Roadmap"
+                      >
+                        🗺 Roadmap
+                      </Link>
+                    )}
                   </div>
                 </div>
                 <span
