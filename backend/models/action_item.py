@@ -9,6 +9,8 @@ from models.base import gen_uuid
 if TYPE_CHECKING:
     from models.product import Product
     from models.meeting import Meeting
+    from models.roadmap_phase import RoadmapPhase
+    from models.roadmap_sprint import RoadmapSprint
 
 
 class ActionItem(Base):
@@ -28,6 +30,12 @@ class ActionItem(Base):
     source_feedback_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("feedbacks.id", ondelete="SET NULL"), nullable=True
     )
+    phase_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("roadmap_phases.id", ondelete="SET NULL"), nullable=True
+    )
+    sprint_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("roadmap_sprints.id", ondelete="SET NULL"), nullable=True
+    )
     created_at: Mapped[object] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -40,3 +48,5 @@ class ActionItem(Base):
     source_meeting: Mapped[Optional["Meeting"]] = relationship(
         "Meeting", back_populates="action_items", foreign_keys=[source_meeting_id]
     )
+    phase: Mapped[Optional["RoadmapPhase"]] = relationship("RoadmapPhase", foreign_keys=[phase_id])
+    sprint: Mapped[Optional["RoadmapSprint"]] = relationship("RoadmapSprint", foreign_keys=[sprint_id])
