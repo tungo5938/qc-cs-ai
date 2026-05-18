@@ -1379,17 +1379,17 @@ function FeedbackRow({
       </td>
 
       {/* Team */}
-      <td className="py-2 px-2 whitespace-nowrap">
+      <td className="py-2 px-2 w-16 overflow-hidden">
         <TeamCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
       {/* Type */}
-      <td className="py-2 px-2 whitespace-nowrap">
+      <td className="py-2 px-2 w-20 overflow-hidden">
         <TypeCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
       {/* Status */}
-      <td className="py-2 px-2 w-36 overflow-hidden">
+      <td className="py-2 px-2 w-28 overflow-hidden">
         <StatusCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
