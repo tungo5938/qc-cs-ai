@@ -1211,14 +1211,6 @@ const TEAM_OPTIONS = [
 
 function TeamCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feedback>) => void }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
 
   async function select(value: string | null) {
     setOpen(false);
@@ -1230,37 +1222,47 @@ function TeamCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feed
   const color = fb.team ? (TEAM_COLORS[fb.team] ?? "bg-gray-100 text-gray-600") : "";
 
   return (
-    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
-      <button
-        onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 ${
-          fb.team ? color : "text-gray-300 hover:text-gray-500"
-        }`}
-        title="Click để chọn team"
-      >
-        <span>{fb.team ?? "—"}</span>
-        <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
-      </button>
-      {open && (
-        <div className="absolute z-20 top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-xl w-28 py-1">
-          <button onClick={() => select(null)}
-            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50 cursor-pointer">
+    <div onClick={(e) => e.stopPropagation()}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 whitespace-nowrap ${
+              fb.team ? color : "text-gray-300 hover:text-gray-500"
+            }`}
+            title="Click để chọn team"
+          >
+            <span>{fb.team ?? "—"}</span>
+            <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-28 p-1" align="start" sideOffset={4}>
+          <button
+            onClick={() => select(null)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded text-gray-400 hover:bg-gray-50 cursor-pointer"
+          >
             <span className="flex-1 text-left">Bỏ chọn</span>
             {!fb.team && <CheckIcon className="w-3 h-3 text-gray-400 shrink-0" />}
           </button>
-          {TEAM_OPTIONS.map(opt => (
-            <button key={opt.value} onClick={() => select(opt.value)}
-              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition cursor-pointer ${
+          {TEAM_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => select(opt.value)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded transition cursor-pointer ${
                 fb.team === opt.value
-                  ? "bg-gray-50 text-gray-900 font-semibold"
+                  ? "bg-gray-100 text-gray-900 font-semibold"
                   : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-              }`}>
-              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${TEAM_COLORS[opt.value]}`}>{opt.label}</span>
-              {fb.team === opt.value && <CheckIcon className="w-3 h-3 text-gray-500 shrink-0 ml-auto" />}
+              }`}
+            >
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${TEAM_COLORS[opt.value]}`}>
+                {opt.label}
+              </span>
+              {fb.team === opt.value && (
+                <CheckIcon className="w-3 h-3 text-gray-500 shrink-0 ml-auto" />
+              )}
             </button>
           ))}
-        </div>
-      )}
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
