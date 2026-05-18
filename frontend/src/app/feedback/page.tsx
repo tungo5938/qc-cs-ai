@@ -1,5 +1,7 @@
 "use client";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Feedback } from "@/lib/types";
@@ -17,18 +19,34 @@ import {
 
 const STATUS_TABS = [
   { value: "", label: "Tất cả" },
-  { value: "new", label: "Mới" },
-  { value: "analyzing", label: "Đang phân tích" },
-  { value: "analyzed", label: "Đã phân tích" },
-  { value: "solution_drafted", label: "Đã tạo solution" },
+  { value: "draft", label: "Nháp" },
+  { value: "evaluating", label: "Đang đánh giá" },
+  { value: "planned", label: "Đã lên kế hoạch" },
+  { value: "in_progress", label: "Đang thực hiện" },
+  { value: "solution_drafted", label: "Có solution draft" },
+  { value: "uat", label: "Sẵn sàng UAT" },
+  { value: "done", label: "Done" },
 ];
 
 const TYPE_TABS = [
   { value: "", label: "Tất cả" },
-  { value: "bug", label: "🐛 Bug" },
-  { value: "feature", label: "✨ Feature" },
-  { value: "unclear", label: "❓ Chưa rõ" },
+  { value: "bug", label: "Bug" },
+  { value: "feature", label: "Feature" },
+  { value: "unclear", label: "Chưa rõ" },
 ];
+
+const TEAM_TABS = [
+  { value: "", label: "Tất cả" },
+  { value: "TEL", label: "TEL" },
+  { value: "B2C", label: "B2C" },
+  { value: "C2C", label: "C2C" },
+];
+
+const TEAM_COLORS: Record<string, string> = {
+  TEL: "bg-violet-100 text-violet-800",
+  B2C: "bg-sky-100 text-sky-800",
+  C2C: "bg-teal-100 text-teal-800",
+};
 
 const EXPORT_FIELD_GROUPS = [
   { key: "basic", label: "Thông tin cơ bản", desc: "ID, sản phẩm, loại, nguồn, trạng thái, ngày tạo" },
@@ -119,9 +137,9 @@ function ModalRatings({
   onSave: (field: RatingField, val: number, note?: string) => Promise<void>;
 }) {
   const FIELDS: { label: string; field: RatingField; noteField: NoteField; value: number | null | undefined; note: string | null | undefined }[] = [
-    { label: "👤 User", field: "user_priority", noteField: "user_priority_note", value: fb.user_priority, note: fb.user_priority_note },
-    { label: "📊 PO", field: "tu_danh_gia", noteField: "tu_danh_gia_note", value: fb.tu_danh_gia, note: fb.tu_danh_gia_note },
-    { label: "⚙️ Dev", field: "tech_rating", noteField: "tech_rating_note", value: fb.tech_rating, note: fb.tech_rating_note },
+    { label: "User", field: "user_priority", noteField: "user_priority_note", value: fb.user_priority, note: fb.user_priority_note },
+    { label: "PO", field: "tu_danh_gia", noteField: "tu_danh_gia_note", value: fb.tu_danh_gia, note: fb.tu_danh_gia_note },
+    { label: "Dev", field: "tech_rating", noteField: "tech_rating_note", value: fb.tech_rating, note: fb.tech_rating_note },
   ];
   return (
     <div className="bg-gray-50 rounded-xl p-4">
@@ -290,7 +308,7 @@ function InlineTextEdit({
         ) : (
           <span className="text-gray-300 italic">{placeholder}</span>
         )}
-        <span className="ml-1 text-gray-300 group-hover:text-gray-400 text-xs">✏️</span>
+        <svg className="inline ml-1 w-3 h-3 text-gray-300 group-hover:text-gray-400 transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
       </button>
     </div>
   );
@@ -324,7 +342,10 @@ function JiraPreviewPanel({
   return (
     <div className="h-full flex flex-col bg-white p-5 overflow-y-auto space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-gray-900">🎫 Tạo Jira ticket</p>
+        <p className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 2l-4 5-4-5"/></svg>
+          Tạo Jira ticket
+        </p>
         <button onClick={onCancel} className="text-xs text-gray-400 hover:text-gray-600">← Huỷ</button>
       </div>
 
@@ -397,7 +418,12 @@ function JiraPreviewPanel({
           disabled={creating || !draft.title.trim()}
           className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50"
         >
-          {creating ? "Đang tạo..." : "🚀 Tạo Jira ticket"}
+          {creating ? "Đang tạo..." : (
+            <span className="flex items-center justify-center gap-2">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              Tạo Jira ticket
+            </span>
+          )}
         </button>
       )}
     </div>
@@ -642,13 +668,13 @@ function FeedbackDetailModal({
                 <ModalRatings fb={fb} onSave={saveRating} />
 
                 {/* Analyze button */}
-                {(fb.status === "new" || fb.status === "analyzing") && (
+                {(fb.status === "draft" || fb.status === "evaluating") && (
                   <button
                     onClick={handleAnalyze}
-                    disabled={analyzing || fb.status === "analyzing"}
+                    disabled={analyzing}
                     className="w-full bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-red-700 transition disabled:opacity-50"
                   >
-                    {analyzing || fb.status === "analyzing" ? "Đang phân tích..." : "Phân tích AI"}
+                    {analyzing ? "Đang phân tích..." : "Phân tích AI"}
                   </button>
                 )}
 
@@ -686,7 +712,12 @@ function FeedbackDetailModal({
                       disabled={generatingSolution}
                       className="text-xs px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200 transition disabled:opacity-50"
                     >
-                      {generatingSolution ? "Đang tạo..." : "✨ AI"}
+                      {generatingSolution ? "Đang tạo..." : (
+                        <span className="flex items-center gap-1">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                          AI
+                        </span>
+                      )}
                     </button>
                   </div>
                   <InlineTextEdit
@@ -698,23 +729,18 @@ function FeedbackDetailModal({
                   />
                 </div>
 
-                {/* Solution link */}
-                {fb.solution_id && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
-                    <p className="text-sm text-green-700">Đã có solution draft.</p>
-                    <Link href={`/solutions/${fb.solution_id}`} className="text-sm font-medium text-green-700 underline" onClick={onClose}>
-                      Xem →
-                    </Link>
-                  </div>
-                )}
-
                 {/* Jira button */}
                 <button
                   onClick={handleOpenJiraPanel}
                   disabled={preparingJira}
                   className="w-full flex items-center justify-center gap-2 border border-blue-300 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition disabled:opacity-50"
                 >
-                  {preparingJira ? "Đang chuẩn bị..." : "🎫 Tạo Jira ticket"}
+                  {preparingJira ? "Đang chuẩn bị..." : (
+                    <>
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 2l-4 5-4-5"/></svg>
+                      Tạo Jira ticket
+                    </>
+                  )}
                 </button>
 
                 <div className="flex justify-end pt-1">
@@ -769,13 +795,569 @@ function FeedbackDetailModal({
   );
 }
 
-// ── Feedback card ────────────────────────────────────────────────────────────
-function FeedbackCard({
+// ── Sprint helpers ────────────────────────────────────────────────────────────
+// Find "Thông báo Production" meeting date from a sprint's meetings
+function getProductionDeadline(sprint: import("@/lib/types").Sprint): string | null {
+  if (!sprint.meetings) return null;
+  const prod = sprint.meetings.find(m => m.name.includes("Thông báo Production"));
+  return prod?.scheduled_at?.slice(0, 10) ?? null;
+}
+
+function fmtDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  const [y, m, d] = dateStr.split("-");
+  return `${d}/${m}`;
+}
+
+// ── Compact rating cell (table) ───────────────────────────────────────────────
+function RatingCell({
+  value,
+  onSave,
+}: {
+  value: number | null | undefined;
+  onSave: (v: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value?.toString() ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function submit() {
+    const num = parseInt(draft, 10);
+    if (isNaN(num) || num < 1 || num > 10) { setEditing(false); return; }
+    setSaving(true);
+    try { await onSave(num); setEditing(false); }
+    finally { setSaving(false); }
+  }
+
+  if (editing) {
+    return (
+      <span onClick={e => e.stopPropagation()}>
+        <input
+          type="number" min={1} max={10}
+          value={draft} autoFocus
+          onChange={e => setDraft(e.target.value)}
+          onBlur={submit}
+          onKeyDown={e => { if (e.key === "Enter") submit(); if (e.key === "Escape") setEditing(false); }}
+          className="w-10 text-center text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-red-500"
+        />
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); setDraft(value?.toString() ?? ""); setEditing(true); }}
+      className={`w-full text-center text-xs font-semibold rounded px-1 py-0.5 transition hover:ring-1 hover:ring-red-400 ${
+        value == null ? "text-gray-300" : "text-gray-700 hover:text-red-600"
+      }`}
+      title="Click để chỉnh điểm"
+    >
+      {saving ? "…" : value ?? "—"}
+    </button>
+  );
+}
+
+// ── Sprint + Deadline cells ───────────────────────────────────────────────────
+
+function SprintCell({
   fb,
+  sprints,
+  onSaved,
+}: {
+  fb: Feedback;
+  sprints: import("@/lib/types").Sprint[];
+  onSaved: (patch: Partial<Feedback>) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  async function select(sprint: import("@/lib/types").Sprint) {
+    setOpen(false);
+    let deadline: string | null = null;
+    try {
+      const full = await api.sprints.get(sprint.id);
+      deadline = getProductionDeadline(full);
+    } catch {}
+    const updated = await api.feedbacks.update(fb.id, { sprint_id: sprint.id, deadline });
+    onSaved({ sprint_id: sprint.id, sprint_name: sprint.name, deadline: updated.deadline ?? deadline });
+  }
+
+  async function clear() {
+    setOpen(false);
+    await api.feedbacks.update(fb.id, { sprint_id: null, deadline: null });
+    onSaved({ sprint_id: null, sprint_name: null, deadline: null });
+  }
+
+  const label = fb.sprint_name ?? (fb.sprint_id ? "Sprint" : "—");
+
+  return (
+    <div className="w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className={`w-full text-xs px-1.5 py-0.5 rounded transition hover:ring-1 hover:ring-blue-400 truncate cursor-pointer block text-left ${
+              fb.sprint_id ? "text-blue-700 font-semibold bg-blue-50" : "text-gray-300 hover:text-blue-500"
+            }`}
+            title={fb.sprint_name ?? undefined}
+          >
+            {label}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-52 p-0" align="end" sideOffset={4}>
+          <Command>
+            <CommandInput placeholder="Tìm sprint..." className="h-8 text-xs" />
+            <CommandList>
+              <CommandEmpty className="py-2 text-center text-xs text-gray-400">Không tìm thấy.</CommandEmpty>
+              <CommandGroup>
+                <CommandItem onSelect={clear} className="text-xs text-gray-400 cursor-pointer">
+                  Bỏ chọn
+                </CommandItem>
+                {sprints.map(s => (
+                  <CommandItem
+                    key={s.id}
+                    value={s.name}
+                    onSelect={() => select(s)}
+                    className={`text-xs cursor-pointer ${fb.sprint_id === s.id ? "font-semibold text-blue-700" : ""}`}
+                  >
+                    {s.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+function DeadlineCell({
+  fb,
+  onSaved,
+}: {
+  fb: Feedback;
+  onSaved: (patch: Partial<Feedback>) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(fb.deadline ?? "");
+
+  useEffect(() => { setDraft(fb.deadline ?? ""); }, [fb.deadline]);
+
+  async function commit(val: string) {
+    setEditing(false);
+    if (val === (fb.deadline ?? "")) return;
+    const updated = await api.feedbacks.update(fb.id, { deadline: val || null });
+    onSaved({ deadline: updated.deadline ?? null });
+  }
+
+  if (editing) {
+    return (
+      <span onClick={e => e.stopPropagation()}>
+        <input
+          type="date"
+          value={draft}
+          autoFocus
+          onChange={e => setDraft(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => { if (e.key === "Enter") commit(draft); if (e.key === "Escape") setEditing(false); }}
+          className="text-xs border border-gray-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500 w-28"
+        />
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); setEditing(true); }}
+      className={`text-xs rounded px-1 py-0.5 transition hover:ring-1 hover:ring-blue-400 ${
+        fb.deadline ? "text-gray-700 font-medium" : "text-gray-300 hover:text-blue-500"
+      }`}
+      title="Click để chỉnh deadline"
+    >
+      {fmtDate(fb.deadline)}
+    </button>
+  );
+}
+
+// ── SVG icons ─────────────────────────────────────────────────────────────────
+function BugIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 2l1.5 1.5" /><path d="M14.5 3.5L16 2" />
+      <path d="M9 9a3 3 0 0 1 6 0v5a3 3 0 0 1-6 0V9Z" />
+      <path d="M6.5 9H4a1 1 0 0 0-1 1v1a5 5 0 0 0 2.8 4.5" />
+      <path d="M17.5 9H20a1 1 0 0 1 1 1v1a5 5 0 0 1-2.8 4.5" />
+      <path d="M9 17.5a5 5 0 0 0 6 0" /><path d="M9 12h6" />
+    </svg>
+  );
+}
+function FeatureIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+function UnclearIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><path d="M12 17h.01" />
+    </svg>
+  );
+}
+function ChevronDown({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  );
+}
+function CheckIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 6L9 17l-5-5" />
+    </svg>
+  );
+}
+
+// ── Type cell (dropdown) ─────────────────────────────────────────────────────
+const TYPE_OPTIONS = [
+  { value: "bug", label: "Bug", Icon: BugIcon },
+  { value: "feature", label: "Feature", Icon: FeatureIcon },
+  { value: "unclear", label: "Chưa rõ", Icon: UnclearIcon },
+];
+
+function TypeCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feedback>) => void }) {
+  const [open, setOpen] = useState(false);
+
+  async function select(value: string) {
+    setOpen(false);
+    if (value === (fb.feedback_type ?? "")) return;
+    const updated = await api.feedbacks.update(fb.id, { feedback_type: value });
+    onSaved({ feedback_type: (updated as Feedback).feedback_type });
+  }
+
+  const typeOption = TYPE_OPTIONS.find((o) => o.value === fb.feedback_type);
+  const typeColor = fb.feedback_type
+    ? (FEEDBACK_TYPE_COLORS[fb.feedback_type] ?? "bg-gray-100 text-gray-500")
+    : "";
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 whitespace-nowrap ${
+              typeOption ? typeColor : "text-gray-300 hover:text-gray-500"
+            }`}
+            title="Click để thay đổi loại"
+          >
+            {typeOption ? (
+              <>
+                <typeOption.Icon className="w-3 h-3 shrink-0" />
+                <span>{typeOption.label}</span>
+              </>
+            ) : (
+              <span>—</span>
+            )}
+            <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-36 p-1" align="start" sideOffset={4}>
+          {TYPE_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => select(opt.value)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded transition cursor-pointer ${
+                fb.feedback_type === opt.value
+                  ? "bg-gray-100 text-gray-900 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <opt.Icon className="w-3 h-3 shrink-0" />
+              <span className="flex-1 text-left">{opt.label}</span>
+              {fb.feedback_type === opt.value && (
+                <CheckIcon className="w-3 h-3 text-gray-500 shrink-0" />
+              )}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// ── Status cell (dropdown) ────────────────────────────────────────────────────
+function DraftIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+      <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><line x1="10" y1="9" x2="8" y2="9" />
+    </svg>
+  );
+}
+function EvaluatingIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+    </svg>
+  );
+}
+function PlannedIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+    </svg>
+  );
+}
+function InProgressIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22a10 10 0 1 1 0-20 10 10 0 0 1 0 20z" /><path d="M12 6v6l4 2" />
+    </svg>
+  );
+}
+function UATIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 12l2 2 4-4" /><path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3" /><path d="M3 12c1 0 3-1 3-3S4 6 3 6 0 7 0 9s2 3 3 3" /><path d="M12 3c0 1-1 3-3 3s-3-2-3-3 1-3 3-3 3 2 3 3" /><path d="M12 21c0-1-1-3-3-3s-3 2-3 3 1 3 3 3 3-2 3-3" />
+    </svg>
+  );
+}
+function DoneIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+function SolutionDraftedIcon({ className = "w-3 h-3" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><path d="m9 15 2 2 4-4" />
+    </svg>
+  );
+}
+
+const STATUS_OPTIONS = [
+  { value: "draft", label: "Nháp", Icon: DraftIcon },
+  { value: "evaluating", label: "Đang đánh giá", Icon: EvaluatingIcon },
+  { value: "planned", label: "Đã lên kế hoạch", Icon: PlannedIcon },
+  { value: "in_progress", label: "Đang thực hiện", Icon: InProgressIcon },
+  { value: "solution_drafted", label: "Có solution draft", Icon: SolutionDraftedIcon },
+  { value: "uat", label: "Sẵn sàng UAT", Icon: UATIcon },
+  { value: "done", label: "Done", Icon: DoneIcon },
+];
+
+function StatusCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feedback>) => void }) {
+  const [open, setOpen] = useState(false);
+
+  async function select(value: string) {
+    setOpen(false);
+    if (value === fb.status) return;
+    const updated = await api.feedbacks.update(fb.id, { status: value });
+    onSaved({ status: (updated as Feedback).status });
+  }
+
+  const statusOption = STATUS_OPTIONS.find((o) => o.value === fb.status);
+  const statusColor =
+    FEEDBACK_STATUS_COLORS[fb.status] ?? "bg-gray-100 text-gray-500";
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 whitespace-nowrap ${statusColor}`}
+            title="Click để thay đổi trạng thái"
+          >
+            {statusOption && (
+              <statusOption.Icon className="w-3 h-3 shrink-0" />
+            )}
+            <span>{statusOption?.label ?? fb.status}</span>
+            <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
+          {STATUS_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => select(opt.value)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs rounded transition cursor-pointer ${
+                fb.status === opt.value
+                  ? "bg-gray-100 text-gray-900 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}
+            >
+              <opt.Icon className="w-3 h-3 shrink-0" />
+              <span className="flex-1 text-left">{opt.label}</span>
+              {fb.status === opt.value && (
+                <CheckIcon className="w-3 h-3 text-gray-500 shrink-0" />
+              )}
+            </button>
+          ))}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
+// ── Team cell (dropdown) ──────────────────────────────────────────────────────
+const TEAM_OPTIONS = [
+  { value: "TEL", label: "TEL" },
+  { value: "B2C", label: "B2C" },
+  { value: "C2C", label: "C2C" },
+];
+
+function TeamCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feedback>) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onClick(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); }
+    document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [open]);
+
+  async function select(value: string | null) {
+    setOpen(false);
+    if (value === (fb.team ?? null)) return;
+    const updated = await api.feedbacks.update(fb.id, { team: value });
+    onSaved({ team: (updated as Feedback).team });
+  }
+
+  const color = fb.team ? (TEAM_COLORS[fb.team] ?? "bg-gray-100 text-gray-600") : "";
+
+  return (
+    <div ref={ref} className="relative" onClick={e => e.stopPropagation()}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 ${
+          fb.team ? color : "text-gray-300 hover:text-gray-500"
+        }`}
+        title="Click để chọn team"
+      >
+        <span>{fb.team ?? "—"}</span>
+        <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
+      </button>
+      {open && (
+        <div className="absolute z-20 top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-xl w-28 py-1">
+          <button onClick={() => select(null)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-gray-400 hover:bg-gray-50 cursor-pointer">
+            <span className="flex-1 text-left">Bỏ chọn</span>
+            {!fb.team && <CheckIcon className="w-3 h-3 text-gray-400 shrink-0" />}
+          </button>
+          {TEAM_OPTIONS.map(opt => (
+            <button key={opt.value} onClick={() => select(opt.value)}
+              className={`w-full flex items-center gap-2 px-3 py-1.5 text-xs transition cursor-pointer ${
+                fb.team === opt.value
+                  ? "bg-gray-50 text-gray-900 font-semibold"
+                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+              }`}>
+              <span className={`px-1.5 py-0.5 rounded text-xs font-medium ${TEAM_COLORS[opt.value]}`}>{opt.label}</span>
+              {fb.team === opt.value && <CheckIcon className="w-3 h-3 text-gray-500 shrink-0 ml-auto" />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Notified cell ─────────────────────────────────────────────────────────────
+function NotifiedCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feedback>) => void }) {
+  const [saving, setSaving] = useState(false);
+
+  async function toggle(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (fb.status !== "done") return;
+    setSaving(true);
+    try {
+      const updated = await api.feedbacks.update(fb.id, { notified: !fb.notified });
+      onSaved({ notified: (updated as Feedback).notified });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (fb.status !== "done") return <span className="text-gray-200 text-xs">—</span>;
+
+  return (
+    <button
+      onClick={toggle}
+      disabled={saving}
+      title={fb.notified ? "Đã thông báo — click để bỏ" : "Chưa thông báo — click để đánh dấu"}
+      className={`cursor-pointer transition ${saving ? "opacity-40" : ""} ${fb.notified ? "text-green-500" : "text-gray-300 hover:text-gray-500"}`}
+    >
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+      </svg>
+    </button>
+  );
+}
+
+// ── Title cell (inline edit in table) ────────────────────────────────────────
+function TitleCell({
+  fb,
+  onSaved,
+}: {
+  fb: Feedback;
+  onSaved: (patch: Partial<Feedback>) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(fb.title ?? fb.raw_content ?? "");
+
+  useEffect(() => { setDraft(fb.title ?? fb.raw_content ?? ""); }, [fb.title, fb.raw_content]);
+
+  async function commit(val: string) {
+    setEditing(false);
+    if (val === (fb.title ?? "")) return;
+    const updated = await api.feedbacks.update(fb.id, { title: val || undefined });
+    onSaved({ title: (updated as Feedback).title });
+  }
+
+  if (editing) {
+    return (
+      <span onClick={e => e.stopPropagation()}>
+        <input
+          type="text"
+          value={draft}
+          autoFocus
+          onChange={e => setDraft(e.target.value)}
+          onBlur={e => commit(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter") commit(draft);
+            if (e.key === "Escape") { setEditing(false); setDraft(fb.title ?? fb.raw_content ?? ""); }
+          }}
+          className="w-full text-sm border border-blue-300 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+      </span>
+    );
+  }
+
+  return (
+    <button
+      onClick={e => { e.stopPropagation(); setEditing(true); }}
+      className="text-left w-full text-sm font-medium text-gray-900 truncate leading-snug hover:text-blue-700 hover:underline transition group/title"
+      title="Click để sửa tiêu đề"
+    >
+      {fb.title ?? fb.raw_content}
+      <svg className="inline ml-1 w-3 h-3 opacity-0 group-hover/title:opacity-40 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+    </button>
+  );
+}
+
+// ── Feedback row (table) ──────────────────────────────────────────────────────
+function FeedbackRow({
+  fb,
+  sprints,
   onRated,
   onOpen,
 }: {
   fb: Feedback;
+  sprints: import("@/lib/types").Sprint[];
   onRated: (id: string, updated: Partial<Feedback>) => void;
   onOpen: (id: string) => void;
 }) {
@@ -785,58 +1367,82 @@ function FeedbackCard({
   }
 
   return (
-    <div
-      className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-red-200 hover:shadow-md transition cursor-pointer"
-      onClick={() => onOpen(fb.id)}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
-            {fb.product_name && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">
-                {fb.product_name}
-              </span>
-            )}
-            {fb.feedback_type && (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_TYPE_COLORS[fb.feedback_type] ?? "bg-gray-100 text-gray-600"}`}>
-                {FEEDBACK_TYPE_LABELS[fb.feedback_type] ?? fb.feedback_type}
-              </span>
-            )}
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_SOURCE_COLORS[fb.source] ?? "bg-gray-100 text-gray-600"}`}>
-              {FEEDBACK_SOURCE_LABELS[fb.source] ?? fb.source}
-            </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_STATUS_COLORS[fb.status] ?? "bg-gray-100 text-gray-600"}`}>
-              {FEEDBACK_STATUS_LABELS[fb.status] ?? fb.status}
-            </span>
-            {fb.priority_score != null && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-semibold">
-                ★ {fb.priority_score.toFixed(1)}
-              </span>
-            )}
-          </div>
+    <tr className="border-b border-gray-100 hover:bg-red-50/30 transition-colors group">
+      {/* Title / content */}
+      <td className="py-2 pl-3 pr-2 max-w-0 w-full">
+        <TitleCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+        {fb.product_name && (
+          <p className="text-xs text-gray-400 truncate">{fb.product_name}</p>
+        )}
+      </td>
 
-          {/* Title if available, otherwise raw content preview */}
-          {fb.title ? (
-            <>
-              <p className="text-sm font-medium text-gray-900">{fb.title}</p>
-              <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{fb.raw_content}</p>
-            </>
-          ) : (
-            <p className="text-sm text-gray-800 line-clamp-2">{fb.raw_content}</p>
-          )}
-        </div>
-        <span className="text-xs text-gray-400 shrink-0">
-          {new Date(fb.created_at).toLocaleDateString("vi-VN")}
-        </span>
-      </div>
+      {/* Team */}
+      <td className="py-2 px-2 whitespace-nowrap">
+        <TeamCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+      </td>
 
-      {/* Inline ratings row */}
-      <div className="flex flex-wrap gap-4 mt-3 pt-2 border-t border-gray-50">
-        <RatingInput label="👤 User" value={fb.user_priority} onSave={v => saveRating("user_priority", v)} />
-        <RatingInput label="📊 PO" value={fb.tu_danh_gia} onSave={v => saveRating("tu_danh_gia", v)} />
-        <RatingInput label="⚙️ Dev" value={fb.tech_rating} onSave={v => saveRating("tech_rating", v)} />
-      </div>
-    </div>
+      {/* Type */}
+      <td className="py-2 px-2 whitespace-nowrap">
+        <TypeCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+      </td>
+
+      {/* Status */}
+      <td className="py-2 px-2 w-36 overflow-hidden">
+        <StatusCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+      </td>
+
+      {/* User rating */}
+      <td className="py-2 px-1 w-12 text-center" onClick={e => e.stopPropagation()}>
+        <RatingCell value={fb.user_priority} onSave={v => saveRating("user_priority", v)} />
+      </td>
+
+      {/* PO rating */}
+      <td className="py-2 px-1 w-12 text-center" onClick={e => e.stopPropagation()}>
+        <RatingCell value={fb.tu_danh_gia} onSave={v => saveRating("tu_danh_gia", v)} />
+      </td>
+
+      {/* Dev rating */}
+      <td className="py-2 px-1 w-12 text-center" onClick={e => e.stopPropagation()}>
+        <RatingCell value={fb.tech_rating} onSave={v => saveRating("tech_rating", v)} />
+      </td>
+
+      {/* Priority score */}
+      <td className="py-2 px-2 w-14 text-center whitespace-nowrap">
+        {fb.priority_score != null ? (
+          <span className="text-xs font-bold text-orange-600">{fb.priority_score.toFixed(1)}</span>
+        ) : (
+          <span className="text-xs text-gray-300">—</span>
+        )}
+      </td>
+
+      {/* Deadline */}
+      <td className="py-2 px-2 w-24 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+        <DeadlineCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+      </td>
+
+      {/* Sprint */}
+      <td className="py-2 pl-2 w-20 overflow-hidden text-center" onClick={e => e.stopPropagation()}>
+        <SprintCell fb={fb} sprints={sprints} onSaved={p => onRated(fb.id, p)} />
+      </td>
+
+      {/* Notified */}
+      <td className="py-2 px-2 w-10 text-center" onClick={e => e.stopPropagation()}>
+        <NotifiedCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+      </td>
+
+      {/* Open modal */}
+      <td className="py-2 pr-3 pl-1 w-10 text-center">
+        <button
+          onClick={e => { e.stopPropagation(); onOpen(fb.id); }}
+          className="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
+          title="Xem chi tiết"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+        </button>
+      </td>
+    </tr>
   );
 }
 
@@ -918,44 +1524,55 @@ function applyRatingFilter(feedbacks: Feedback[], ratingFilter: string): Feedbac
   }
 }
 
+const PAGE_SIZE = 50;
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FeedbackListPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
   const [ratingFilter, setRatingFilter] = useState("");
   const [productId, setProductId] = useState<string>("");
   const [syncing, setSyncing] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [openModalId, setOpenModalId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const [sprints, setSprints] = useState<import("@/lib/types").Sprint[]>([]);
 
-  const load = useCallback((pid: string, status: string, type: string) => {
+  const load = useCallback((pid: string, status: string, type: string, team: string) => {
     setLoading(true);
+    setPage(1);
     api.feedbacks
-      .list({ product_id: pid || undefined, status: status || undefined, feedback_type: type || undefined })
+      .list({ product_id: pid || undefined, status: status || undefined, feedback_type: type || undefined, team: team || undefined })
       .then(r => setFeedbacks(r as Feedback[]))
       .finally(() => setLoading(false));
+    // Load sprints for this product (for the dropdown)
+    api.sprints.list(pid || undefined)
+      .then((s: any[]) => setSprints(s))
+      .catch(() => setSprints([]));
   }, []);
 
   useEffect(() => {
     const pid = localStorage.getItem(PRODUCT_FILTER_KEY) || "";
     setProductId(pid);
-    load(pid, statusFilter, typeFilter);
+    load(pid, statusFilter, typeFilter, teamFilter);
 
     function onStorage(e: StorageEvent) {
       if (e.key === PRODUCT_FILTER_KEY) {
         const newPid = e.newValue || "";
         setProductId(newPid);
-        load(newPid, statusFilter, typeFilter);
+        load(newPid, statusFilter, typeFilter, teamFilter);
       }
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [load, statusFilter, typeFilter]);
+  }, [load, statusFilter, typeFilter, teamFilter]);
 
-  function handleStatusChange(s: string) { setStatusFilter(s); load(productId, s, typeFilter); }
-  function handleTypeChange(t: string) { setTypeFilter(t); load(productId, statusFilter, t); }
+  function handleStatusChange(s: string) { setStatusFilter(s); load(productId, s, typeFilter, teamFilter); }
+  function handleTypeChange(t: string) { setTypeFilter(t); load(productId, statusFilter, t, teamFilter); }
+  function handleTeamChange(t: string) { setTeamFilter(t); load(productId, statusFilter, typeFilter, t); }
 
   async function handleSync() {
     if (!productId) return;
@@ -963,7 +1580,7 @@ export default function FeedbackListPage() {
     try {
       const data = await api.feedbacks.syncSheet(productId);
       alert(`Sync xong: ${data.imported} mới, ${data.skipped} đã có`);
-      load(productId, statusFilter, typeFilter);
+      load(productId, statusFilter, typeFilter, teamFilter);
     } catch (e: any) {
       alert("Sync failed: " + e.message);
     } finally {
@@ -979,8 +1596,10 @@ export default function FeedbackListPage() {
     setFeedbacks(prev => prev.map(fb => fb.id === updated.id ? { ...fb, ...updated } : fb));
   }
 
-  const visibleFeedbacks = applyRatingFilter(feedbacks, ratingFilter);
-  const hasActiveFilter = statusFilter !== "" || typeFilter !== "" || ratingFilter !== "";
+  const visibleFeedbacks = useMemo(() => applyRatingFilter(feedbacks, ratingFilter), [feedbacks, ratingFilter]);
+  const pagedFeedbacks = useMemo(() => visibleFeedbacks.slice(0, page * PAGE_SIZE), [visibleFeedbacks, page]);
+  const hasMore = pagedFeedbacks.length < visibleFeedbacks.length;
+  const hasActiveFilter = statusFilter !== "" || typeFilter !== "" || teamFilter !== "" || ratingFilter !== "";
 
   return (
     <div className="space-y-4">
@@ -1001,7 +1620,8 @@ export default function FeedbackListPage() {
           <h1 className="text-xl font-bold text-gray-900">Phản hồi</h1>
           {!loading && (
             <span className="text-sm text-gray-400">
-              {visibleFeedbacks.length}{feedbacks.length !== visibleFeedbacks.length ? `/${feedbacks.length}` : ""}
+              {pagedFeedbacks.length}/{visibleFeedbacks.length}
+              {feedbacks.length !== visibleFeedbacks.length ? ` (${feedbacks.length} tổng)` : ""}
             </span>
           )}
         </div>
@@ -1056,6 +1676,23 @@ export default function FeedbackListPage() {
           </div>
         </div>
 
+        {/* Team */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs text-gray-500 w-14 shrink-0">Team</span>
+          <div className="flex flex-wrap gap-1">
+            {TEAM_TABS.map(tab => (
+              <button key={tab.value} onClick={() => handleTeamChange(tab.value)}
+                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                  teamFilter === tab.value
+                    ? "bg-violet-600/20 text-violet-400 ring-1 ring-violet-600/40"
+                    : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
+                }`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Rating */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs text-gray-500 w-14 shrink-0">Đánh giá</span>
@@ -1090,7 +1727,7 @@ export default function FeedbackListPage() {
         {hasActiveFilter && (
           <div className="pt-1 border-t border-gray-800">
             <button
-              onClick={() => { setStatusFilter(""); setTypeFilter(""); setRatingFilter(""); load(productId, "", ""); }}
+              onClick={() => { setStatusFilter(""); setTypeFilter(""); setTeamFilter(""); setRatingFilter(""); load(productId, "", "", ""); }}
               className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
             >
               ✕ Xoá tất cả bộ lọc
@@ -1106,10 +1743,56 @@ export default function FeedbackListPage() {
           {hasActiveFilter ? "Không có feedback nào khớp bộ lọc." : "Chưa có feedback nào."}
         </div>
       ) : (
-        <div className="space-y-3">
-          {visibleFeedbacks.map(fb => (
-            <FeedbackCard key={fb.id} fb={fb} onRated={handleRated} onOpen={setOpenModalId} />
-          ))}
+        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+          <table className="w-full table-fixed">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50 text-left">
+                <th className="py-2 pl-3 pr-2 text-xs font-medium text-gray-500">Tiêu đề</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-16">Team</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-20">Loại</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-28">Trạng thái</th>
+                <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="User rating">
+                  <span className="flex items-center justify-center gap-0.5">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  </span>
+                </th>
+                <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="PO rating">
+                  <span className="flex items-center justify-center gap-0.5">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
+                  </span>
+                </th>
+                <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="Dev rating">
+                  <span className="flex items-center justify-center gap-0.5">
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  </span>
+                </th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-14 text-center" title="Priority score">
+                  <svg className="w-3.5 h-3.5 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                </th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-24 text-center">Deadline</th>
+                <th className="py-2 pl-2 text-xs font-medium text-gray-500 w-20 text-center">Sprint</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-10 text-center" title="Đã thông báo stakeholder">
+                  <svg className="w-3.5 h-3.5 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                </th>
+                <th className="py-2 pr-3 pl-1 w-10"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pagedFeedbacks.map(fb => (
+                <FeedbackRow key={fb.id} fb={fb} sprints={sprints} onRated={handleRated} onOpen={setOpenModalId} />
+              ))}
+            </tbody>
+          </table>
+          {hasMore && (
+            <div className="border-t border-gray-100 py-3 text-center">
+              <button
+                onClick={() => setPage(p => p + 1)}
+                className="text-xs text-gray-500 hover:text-gray-800 px-4 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 transition"
+              >
+                Load thêm ({visibleFeedbacks.length - pagedFeedbacks.length} còn lại)
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
