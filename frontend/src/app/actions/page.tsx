@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import type { ActionItem } from "@/lib/types";
@@ -8,15 +9,17 @@ import { ACTION_STATUS_LABELS, ACTION_STATUS_COLORS } from "@/lib/constants";
 
 const STATUS_TABS = [
   { value: "", label: "Tất cả" },
-  { value: "todo", label: "Chưa làm" },
-  { value: "in_progress", label: "Đang làm" },
+  { value: "draft", label: "Nháp" },
+  { value: "evaluating", label: "Đang đánh giá" },
+  { value: "planned", label: "Đã lên kế hoạch" },
+  { value: "in_progress", label: "Đang thực hiện" },
+  { value: "uat", label: "Sẵn sàng UAT" },
   { value: "done", label: "Xong" },
-  { value: "cancelled", label: "Hủy" },
 ];
 
 function isOverdue(item: ActionItem): boolean {
   if (!item.deadline) return false;
-  if (item.status === "done" || item.status === "cancelled") return false;
+  if (item.status === "done") return false;
   return new Date(item.deadline) < new Date();
 }
 
@@ -40,6 +43,7 @@ function CreateActionModal({
     title: "",
     assignee: "",
     deadline: "",
+    notes: "",
     product_id: "",
   });
   const [submitting, setSubmitting] = useState(false);
@@ -53,6 +57,7 @@ function CreateActionModal({
       const item = await api.actionItems.create({
         ...form,
         deadline: form.deadline || null,
+        notes: form.notes || null,
         product_id: form.product_id || undefined,
       });
       onCreated(item as ActionItem);
@@ -100,6 +105,16 @@ function CreateActionModal({
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
             />
           </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Mô tả / Ghi chú (tùy chọn)</label>
+            <textarea
+              rows={2}
+              value={form.notes}
+              onChange={(e) => setForm({ ...form, notes: e.target.value })}
+              placeholder="Mô tả, ghi chú..."
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500 resize-none"
+            />
+          </div>
           {error && (
             <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
           )}
@@ -125,7 +140,11 @@ function CreateActionModal({
   );
 }
 
-export default function ActionsPage() {
+function ActionsPageInner() {
+  const searchParams = useSearchParams();
+  const highlightId = searchParams.get("id") ?? null;
+  const itemRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   const [items, setItems] = useState<ActionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState("");
@@ -145,6 +164,12 @@ export default function ActionsPage() {
       .then((r) => setItems(r as ActionItem[]))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!loading && highlightId && itemRefs.current[highlightId]) {
+      itemRefs.current[highlightId]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [loading, highlightId]);
 
   useEffect(() => {
     const pid = localStorage.getItem(PRODUCT_FILTER_KEY) || "";
@@ -173,7 +198,7 @@ export default function ActionsPage() {
   }
 
   async function toggleDone(item: ActionItem) {
-    const newStatus = item.status === "done" ? "todo" : "done";
+    const newStatus = item.status === "done" ? "draft" : "done";
     try {
       const updated = await api.actionItems.update(item.id, { status: newStatus });
       setItems((prev) => prev.map((i) => (i.id === item.id ? (updated as ActionItem) : i)));
@@ -217,16 +242,14 @@ export default function ActionsPage() {
       i.deadline &&
       new Date(i.deadline) >= today &&
       new Date(i.deadline) < tomorrow &&
-      i.status !== "done" &&
-      i.status !== "cancelled"
+      i.status !== "done"
   ).length;
   const thisWeek = items.filter(
     (i) =>
       i.deadline &&
       new Date(i.deadline) >= today &&
       new Date(i.deadline) < nextWeek &&
-      i.status !== "done" &&
-      i.status !== "cancelled"
+      i.status !== "done"
   ).length;
   const doneCount = items.filter((i) => i.status === "done").length;
 
@@ -306,8 +329,13 @@ export default function ActionsPage() {
             return (
               <div
                 key={item.id}
-                className={`bg-white rounded-xl border shadow-sm p-4 flex items-start gap-3 ${
-                  selected.has(item.id) ? "border-red-300 bg-red-50" : "border-gray-100"
+                ref={(el) => { itemRefs.current[item.id] = el; }}
+                className={`bg-white rounded-xl border shadow-sm p-4 flex items-start gap-3 transition-all ${
+                  highlightId === item.id
+                    ? "border-purple-400 ring-2 ring-purple-200"
+                    : selected.has(item.id)
+                    ? "border-red-300 bg-red-50"
+                    : "border-gray-100"
                 }`}
               >
                 {/* Checkbox */}
@@ -325,7 +353,7 @@ export default function ActionsPage() {
                       ? "bg-green-500 border-green-500"
                       : "border-gray-300 hover:border-green-400"
                   }`}
-                  title={item.status === "done" ? "Đánh dấu chưa xong" : "Đánh dấu xong"}
+                  title={item.status === "done" ? "Đánh dấu chưa làm (về Nháp)" : "Đánh dấu xong"}
                 />
                 <div className="flex-1 min-w-0">
                   <p
@@ -335,6 +363,9 @@ export default function ActionsPage() {
                   >
                     {item.title}
                   </p>
+                  {item.notes && (
+                    <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{item.notes}</p>
+                  )}
                   <div className="flex flex-wrap items-center gap-2 mt-1">
                     {item.product_name && (
                       <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
@@ -394,5 +425,13 @@ export default function ActionsPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function ActionsPage() {
+  return (
+    <Suspense>
+      <ActionsPageInner />
+    </Suspense>
   );
 }
