@@ -1389,7 +1389,7 @@ function FeedbackRow({
       </td>
 
       {/* Status */}
-      <td className="py-2 px-2 w-28 overflow-hidden">
+      <td className="py-2 px-2 w-36 overflow-hidden">
         <StatusCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
@@ -1745,14 +1745,14 @@ export default function FeedbackListPage() {
           {hasActiveFilter ? "Không có feedback nào khớp bộ lọc." : "Chưa có feedback nào."}
         </div>
       ) : (
-        <div className="bg-white border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full table-fixed">
+        <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-x-auto">
+          <table className="w-full table-fixed min-w-[900px]">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
                 <th className="py-2 pl-3 pr-2 text-xs font-medium text-gray-500">Tiêu đề</th>
                 <th className="py-2 px-2 text-xs font-medium text-gray-500 w-16">Team</th>
                 <th className="py-2 px-2 text-xs font-medium text-gray-500 w-20">Loại</th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-28">Trạng thái</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-36">Trạng thái</th>
                 <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="User rating">
                   <span className="flex items-center justify-center gap-0.5">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
