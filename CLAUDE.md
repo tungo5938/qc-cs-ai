@@ -4,6 +4,12 @@ Internal QC/PM feedback tool for GHN CS AI team. Telegram bot + stakeholder web 
 
 ---
 
+## Frontend Design Rules
+
+Dark dashboard aesthetic with GHN red (`red-600`) accent. **Stack:** Next.js 15 + TailwindCSS + shadcn/ui (use existing components in `src/components/ui/` — `button`, `badge`, `input`, `popover`, `dialog`, `tabs`, `separator`, `avatar`, `command`, `textarea`). **Typography:** Geist (single font via `--font-sans` CSS variable — never import Inter). **Shared components:** use `StatusBadge` in `src/components/StatusBadge.tsx` for all colored status pills; use shadcn `Avatar` for user avatars; use shadcn `Separator` for dividers in NavBar. **Dropdowns in tables:** always use Radix `Popover` (never `position: absolute`) to escape `overflow-hidden`. **Table layout:** `table-fixed` requires matching `w-*` on both `<th>` and `<td>`. **No comments on obvious code.** No emojis as icons — use SVG only.
+
+---
+
 ## IMPORTANT: Workflow Rules
 
 ### Quy trình đầy đủ (local → prod)
