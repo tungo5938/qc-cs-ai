@@ -12,3 +12,4 @@ dist/
 *.db
 *.sqlite
 /backend/ghn_cs_ai.db
+*.tsbuildinfo
