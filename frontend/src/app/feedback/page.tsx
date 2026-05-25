@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
+import { Inbox, Star, User, BarChart2, Cpu, Download, RefreshCw, Plus, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Feedback } from "@/lib/types";
 import { PRODUCT_FILTER_KEY } from "@/components/NavBar";
@@ -38,7 +39,7 @@ const EXPORT_FIELD_GROUPS = [
   { key: "solution", label: "Solution", desc: "Problem statement, proposed solution, effort size" },
 ];
 
-// ── Inline rating input ──────────────────────────────────────────────────────
+// ── Inline rating input (used in modal only) ─────────────────────────────────
 function RatingInput({
   label,
   value,
@@ -104,6 +105,20 @@ function RatingInput({
     >
       {label} {value != null ? `${value}/10` : <span className="text-gray-300">–/10</span>}
     </button>
+  );
+}
+
+// ── Rating pill — read-only display used in FeedbackCard ─────────────────────
+function RatingPill({ icon, value }: { icon: React.ReactNode; value: number | null | undefined }) {
+  return (
+    <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium ${
+      value != null
+        ? "bg-gray-100 text-gray-700"
+        : "bg-gray-50 text-gray-400 border border-dashed border-gray-200"
+    }`}>
+      {icon}
+      {value != null ? value : "—"}
+    </span>
   );
 }
 
@@ -404,6 +419,16 @@ function JiraPreviewPanel({
   );
 }
 
+// ── Section header divider (used in modal) ───────────────────────────────────
+function SectionHeader({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest whitespace-nowrap">{label}</span>
+      <div className="flex-1 h-px bg-gray-100" />
+    </div>
+  );
+}
+
 // ── Feedback detail modal ────────────────────────────────────────────────────
 function FeedbackDetailModal({
   feedbackId,
@@ -610,7 +635,12 @@ function FeedbackDetailModal({
                 </>
               )}
             </div>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-xl leading-none shrink-0 mt-0.5">✕</button>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center text-gray-500 hover:text-gray-900 transition shrink-0"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Body — two columns when images present */}
@@ -619,9 +649,11 @@ function FeedbackDetailModal({
           ) : !fb ? null : (
             <div className={`flex-1 overflow-hidden flex ${(hasImages || showJiraPanel) ? "flex-row" : "flex-col"}`}>
 
-              {/* LEFT: content + ratings + analysis */}
-              <div className={`overflow-y-auto p-5 space-y-4 ${(hasImages || showJiraPanel) ? "w-[42%] border-r border-gray-100" : "w-full"}`}>
-                {/* Title inline edit */}
+              {/* LEFT: content + ratings + analysis + actions */}
+              <div className={`overflow-y-auto p-5 space-y-5 ${(hasImages || showJiraPanel) ? "w-5/12 border-r border-gray-100" : "w-full"}`}>
+
+                {/* ── SECTION: Nội dung ──────────────────────── */}
+                <SectionHeader label="Nội dung" />
                 {fb.title && (
                   <InlineTextEdit
                     label="Tiêu đề"
@@ -629,8 +661,6 @@ function FeedbackDetailModal({
                     onSave={saveTitle}
                   />
                 )}
-
-                {/* Raw content inline edit */}
                 <InlineTextEdit
                   label="Nội dung gốc"
                   value={fb.raw_content}
@@ -638,10 +668,12 @@ function FeedbackDetailModal({
                   multiline
                 />
 
-                {/* Ratings — always-visible inputs */}
+                {/* ── SECTION: Đánh giá ──────────────────────── */}
+                <SectionHeader label="Đánh giá ưu tiên" />
                 <ModalRatings fb={fb} onSave={saveRating} />
 
-                {/* Analyze button */}
+                {/* ── SECTION: Phân tích AI ──────────────────── */}
+                <SectionHeader label="Phân tích AI" />
                 {(fb.status === "new" || fb.status === "analyzing") && (
                   <button
                     onClick={handleAnalyze}
@@ -651,11 +683,8 @@ function FeedbackDetailModal({
                     {analyzing || fb.status === "analyzing" ? "Đang phân tích..." : "Phân tích AI"}
                   </button>
                 )}
-
-                {/* Analysis */}
                 {fb.analysis && (
                   <div className="space-y-3">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Kết quả phân tích AI</p>
                     <InlineTextEdit
                       label="Nguyên nhân gốc rễ"
                       value={fb.analysis.root_cause}
@@ -676,57 +705,53 @@ function FeedbackDetailModal({
                     </div>
                   </div>
                 )}
-
-                {/* Hướng giải quyết */}
                 <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Hướng giải quyết</p>
-                    <button
-                      onClick={handleGenerateSolution}
-                      disabled={generatingSolution}
-                      className="text-xs px-2 py-0.5 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200 transition disabled:opacity-50"
-                    >
-                      {generatingSolution ? "Đang tạo..." : "✨ AI"}
-                    </button>
-                  </div>
+                  <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Hướng giải quyết</p>
                   <InlineTextEdit
                     label=""
                     value={fb.analysis?.solution_hint}
                     onSave={saveSolutionHint}
                     multiline
-                    placeholder="Chưa có hướng giải quyết. Bấm ✨ AI để tạo tự động."
+                    placeholder="Chưa có hướng giải quyết. Vào mục Hành động để tạo tự động."
                   />
                 </div>
 
-                {/* Solution link */}
-                {fb.solution_id && (
-                  <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
-                    <p className="text-sm text-green-700">Đã có solution draft.</p>
-                    <Link href={`/solutions/${fb.solution_id}`} className="text-sm font-medium text-green-700 underline" onClick={onClose}>
-                      Xem →
+                {/* ── SECTION: Hành động ─────────────────────── */}
+                <SectionHeader label="Hành động" />
+                <div className="space-y-2">
+                  <button
+                    onClick={handleGenerateSolution}
+                    disabled={generatingSolution}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 transition disabled:opacity-50"
+                  >
+                    {generatingSolution ? "Đang tạo..." : "✨ Tạo hướng giải quyết (AI)"}
+                  </button>
+                  {fb.solution_id && (
+                    <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
+                      <p className="text-sm text-green-700">Đã có solution draft.</p>
+                      <Link href={`/solutions/${fb.solution_id}`} className="text-sm font-medium text-green-700 underline" onClick={onClose}>
+                        Xem →
+                      </Link>
+                    </div>
+                  )}
+                  <button
+                    onClick={handleOpenJiraPanel}
+                    disabled={preparingJira}
+                    className="w-full flex items-center justify-center gap-2 border border-blue-300 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition disabled:opacity-50"
+                  >
+                    {preparingJira ? "Đang chuẩn bị..." : "🎫 Tạo Jira ticket"}
+                  </button>
+                  <div className="flex justify-end pt-1">
+                    <Link href={`/feedback/${fb.id}`} className="text-xs text-gray-400 hover:text-gray-600 underline" onClick={onClose}>
+                      Mở trang riêng →
                     </Link>
                   </div>
-                )}
-
-                {/* Jira button */}
-                <button
-                  onClick={handleOpenJiraPanel}
-                  disabled={preparingJira}
-                  className="w-full flex items-center justify-center gap-2 border border-blue-300 text-blue-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 transition disabled:opacity-50"
-                >
-                  {preparingJira ? "Đang chuẩn bị..." : "🎫 Tạo Jira ticket"}
-                </button>
-
-                <div className="flex justify-end pt-1">
-                  <Link href={`/feedback/${fb.id}`} className="text-xs text-gray-400 hover:text-gray-600 underline" onClick={onClose}>
-                    Mở trang riêng →
-                  </Link>
                 </div>
               </div>
 
               {/* RIGHT: jira panel or image panel */}
               {showJiraPanel && jiraDraft ? (
-                <div className="w-[58%] overflow-hidden flex flex-col border-l border-gray-100">
+                <div className="w-7/12 overflow-hidden flex flex-col border-l border-gray-100">
                   <JiraPreviewPanel
                     fb={fb}
                     draft={jiraDraft}
@@ -738,7 +763,7 @@ function FeedbackDetailModal({
                   />
                 </div>
               ) : hasImages ? (
-                <div className="w-[58%] overflow-y-auto bg-gray-950 flex flex-col gap-0">
+                <div className="w-7/12 overflow-y-auto bg-gray-950 flex flex-col gap-0">
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wide px-4 pt-4 pb-2 shrink-0">
                     Hình ảnh đính kèm · {fb.media_urls!.length} ảnh
                   </p>
@@ -772,28 +797,23 @@ function FeedbackDetailModal({
 // ── Feedback card ────────────────────────────────────────────────────────────
 function FeedbackCard({
   fb,
-  onRated,
   onOpen,
 }: {
   fb: Feedback;
-  onRated: (id: string, updated: Partial<Feedback>) => void;
   onOpen: (id: string) => void;
 }) {
-  async function saveRating(field: "user_priority" | "tu_danh_gia" | "tech_rating", val: number) {
-    const updated = await api.feedbackRating.rate(fb.id, { [field]: val });
-    onRated(fb.id, updated);
-  }
-
   return (
     <div
-      className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-red-200 hover:shadow-md transition cursor-pointer"
+      className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:border-red-500/40 hover:shadow-md transition cursor-pointer"
       onClick={() => onOpen(fb.id)}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-2">
+      {/* Top row: badges + priority score */}
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          {/* Badge row */}
+          <div className="flex flex-wrap items-center gap-1.5">
             {fb.product_name && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-md bg-gray-800 text-gray-200 font-semibold">
                 {fb.product_name}
               </span>
             )}
@@ -805,36 +825,74 @@ function FeedbackCard({
             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_SOURCE_COLORS[fb.source] ?? "bg-gray-100 text-gray-600"}`}>
               {FEEDBACK_SOURCE_LABELS[fb.source] ?? fb.source}
             </span>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_STATUS_COLORS[fb.status] ?? "bg-gray-100 text-gray-600"}`}>
-              {FEEDBACK_STATUS_LABELS[fb.status] ?? fb.status}
-            </span>
-            {fb.priority_score != null && (
-              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-100 text-orange-800 font-semibold">
-                ★ {fb.priority_score.toFixed(1)}
-              </span>
-            )}
           </div>
 
-          {/* Title if available, otherwise raw content preview */}
+          {/* Title / content */}
           {fb.title ? (
             <>
-              <p className="text-sm font-medium text-gray-900">{fb.title}</p>
-              <p className="text-xs text-gray-400 line-clamp-1 mt-0.5">{fb.raw_content}</p>
+              <p className="text-sm font-semibold text-gray-900 leading-snug">{fb.title}</p>
+              <p className="text-xs text-gray-400 line-clamp-1">{fb.raw_content}</p>
             </>
           ) : (
             <p className="text-sm text-gray-800 line-clamp-2">{fb.raw_content}</p>
           )}
         </div>
-        <span className="text-xs text-gray-400 shrink-0">
-          {new Date(fb.created_at).toLocaleDateString("vi-VN")}
-        </span>
+
+        {/* Priority score — top-right anchor */}
+        <div className="flex flex-col items-center justify-center bg-orange-50 rounded-xl px-3 py-2 min-w-[52px] border border-orange-100 shrink-0">
+          <Star className="w-3 h-3 text-orange-400 mb-0.5" />
+          <span className={`text-base font-bold leading-none ${fb.priority_score != null ? "text-orange-600" : "text-gray-300"}`}>
+            {fb.priority_score != null ? fb.priority_score.toFixed(1) : "—"}
+          </span>
+        </div>
       </div>
 
-      {/* Inline ratings row */}
-      <div className="flex flex-wrap gap-4 mt-3 pt-2 border-t border-gray-50">
-        <RatingInput label="👤 User" value={fb.user_priority} onSave={v => saveRating("user_priority", v)} />
-        <RatingInput label="📊 PO" value={fb.tu_danh_gia} onSave={v => saveRating("tu_danh_gia", v)} />
-        <RatingInput label="⚙️ Dev" value={fb.tech_rating} onSave={v => saveRating("tech_rating", v)} />
+      {/* Footer row: rating pills + status + date */}
+      <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-gray-100">
+        <div className="flex items-center gap-1.5">
+          <RatingPill icon={<User className="w-3 h-3" />} value={fb.user_priority} />
+          <RatingPill icon={<BarChart2 className="w-3 h-3" />} value={fb.tu_danh_gia} />
+          <RatingPill icon={<Cpu className="w-3 h-3" />} value={fb.tech_rating} />
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${FEEDBACK_STATUS_COLORS[fb.status] ?? "bg-gray-100 text-gray-600"}`}>
+            {FEEDBACK_STATUS_LABELS[fb.status] ?? fb.status}
+          </span>
+          <span className="text-xs text-gray-400">
+            {new Date(fb.created_at).toLocaleDateString("vi-VN")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Skeleton card (loading placeholder) ──────────────────────────────────────
+function FeedbackCardSkeleton() {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 animate-pulse">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 space-y-2">
+          <div className="flex items-center gap-1.5">
+            <div className="h-4 w-14 bg-gray-100 rounded-md" />
+            <div className="h-4 w-10 bg-gray-100 rounded-full" />
+            <div className="h-4 w-12 bg-gray-100 rounded-full" />
+          </div>
+          <div className="h-4 w-3/4 bg-gray-100 rounded" />
+          <div className="h-3 w-1/2 bg-gray-50 rounded" />
+        </div>
+        <div className="h-12 w-12 bg-gray-100 rounded-xl shrink-0" />
+      </div>
+      <div className="flex items-center justify-between border-t border-gray-50 mt-3 pt-2.5">
+        <div className="flex items-center gap-1.5">
+          <div className="h-5 w-10 bg-gray-100 rounded-full" />
+          <div className="h-5 w-10 bg-gray-100 rounded-full" />
+          <div className="h-5 w-10 bg-gray-100 rounded-full" />
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="h-4 w-16 bg-gray-100 rounded-full" />
+          <div className="h-3 w-16 bg-gray-50 rounded" />
+        </div>
       </div>
     </div>
   );
@@ -971,16 +1029,19 @@ export default function FeedbackListPage() {
     }
   }
 
-  function handleRated(id: string, updated: Partial<Feedback>) {
-    setFeedbacks(prev => prev.map(fb => fb.id === id ? { ...fb, ...updated } : fb));
-  }
-
   function handleModalUpdated(updated: Feedback) {
     setFeedbacks(prev => prev.map(fb => fb.id === updated.id ? { ...fb, ...updated } : fb));
   }
 
   const visibleFeedbacks = applyRatingFilter(feedbacks, ratingFilter);
   const hasActiveFilter = statusFilter !== "" || typeFilter !== "" || ratingFilter !== "";
+
+  function clearFilters() {
+    setStatusFilter("");
+    setTypeFilter("");
+    setRatingFilter("");
+    load(productId, "", "");
+  }
 
   return (
     <div className="space-y-4">
@@ -997,43 +1058,70 @@ export default function FeedbackListPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-xl font-bold text-gray-900">Phản hồi</h1>
+        <div className="flex items-baseline gap-3">
+          <h1 className="text-2xl font-bold text-gray-900">Phản hồi</h1>
           {!loading && (
-            <span className="text-sm text-gray-400">
-              {visibleFeedbacks.length}{feedbacks.length !== visibleFeedbacks.length ? `/${feedbacks.length}` : ""}
+            <span className="text-sm text-gray-500">
+              {visibleFeedbacks.length}{feedbacks.length !== visibleFeedbacks.length ? `/${feedbacks.length}` : ""} kết quả
             </span>
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setShowExport(true)} className="text-xs px-3 py-1.5 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition">
-            ↓ Excel
+          {/* Secondary actions */}
+          <button
+            onClick={() => setShowExport(true)}
+            className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg border border-gray-700 text-gray-400 hover:text-gray-200 hover:border-gray-600 transition"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Excel
           </button>
           {productId && (
-            <button onClick={handleSync} disabled={syncing} className="text-xs px-3 py-1.5 rounded-lg border border-green-800 text-green-400 hover:bg-green-900/20 transition disabled:opacity-50">
+            <button
+              onClick={handleSync}
+              disabled={syncing}
+              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg border border-green-800 text-green-400 hover:bg-green-900/20 transition disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
               {syncing ? "Syncing..." : "Sync Sheet"}
             </button>
           )}
-          <Link href="/feedback/new" className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-700 transition font-medium">
-            + Thêm
+          {/* Divider */}
+          <div className="w-px h-6 bg-gray-700" />
+          {/* Primary CTA */}
+          <Link
+            href="/feedback/new"
+            className="inline-flex items-center gap-1.5 bg-red-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-700 transition font-semibold shadow-sm"
+          >
+            <Plus className="w-4 h-4" />
+            Thêm mới
           </Link>
         </div>
       </div>
 
       {/* Filter bar */}
-      <div className="bg-gray-900 border border-gray-800 rounded-xl p-3 space-y-2">
+      <div className="bg-gray-900 border border-gray-800 border-l-2 border-l-red-600 rounded-xl p-3 space-y-2">
         {/* Status */}
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs text-gray-500 w-14 shrink-0">Trạng thái</span>
           <div className="flex flex-wrap gap-1">
             {STATUS_TABS.map(tab => (
-              <button key={tab.value} onClick={() => handleStatusChange(tab.value)}
-                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              <button
+                key={tab.value}
+                onClick={() => handleStatusChange(tab.value)}
+                className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   statusFilter === tab.value
-                    ? "bg-red-600/20 text-red-400 ring-1 ring-red-600/40"
+                    ? "bg-red-600 text-white shadow-sm"
                     : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-                }`}>
+                }`}
+              >
                 {tab.label}
+                {tab.value !== "" && !loading && (
+                  <span className={`text-[10px] font-semibold rounded-full px-1 min-w-[16px] text-center ${
+                    statusFilter === tab.value ? "bg-white/20 text-white" : "bg-gray-700 text-gray-400"
+                  }`}>
+                    {feedbacks.filter(fb => fb.status === tab.value).length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1044,13 +1132,23 @@ export default function FeedbackListPage() {
           <span className="text-xs text-gray-500 w-14 shrink-0">Loại</span>
           <div className="flex flex-wrap gap-1">
             {TYPE_TABS.map(tab => (
-              <button key={tab.value} onClick={() => handleTypeChange(tab.value)}
-                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              <button
+                key={tab.value}
+                onClick={() => handleTypeChange(tab.value)}
+                className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   typeFilter === tab.value
-                    ? "bg-red-600/20 text-red-400 ring-1 ring-red-600/40"
+                    ? "bg-red-600 text-white shadow-sm"
                     : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-                }`}>
+                }`}
+              >
                 {tab.label}
+                {tab.value !== "" && !loading && (
+                  <span className={`text-[10px] font-semibold rounded-full px-1 min-w-[16px] text-center ${
+                    typeFilter === tab.value ? "bg-white/20 text-white" : "bg-gray-700 text-gray-400"
+                  }`}>
+                    {feedbacks.filter(fb => fb.feedback_type === tab.value).length}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1061,17 +1159,22 @@ export default function FeedbackListPage() {
           <span className="text-xs text-gray-500 w-14 shrink-0">Đánh giá</span>
           <div className="flex flex-wrap gap-1">
             {RATING_FILTERS.map(tab => (
-              <button key={tab.value} onClick={() => setRatingFilter(tab.value)}
-                className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+              <button
+                key={tab.value}
+                onClick={() => setRatingFilter(tab.value)}
+                className={`inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
                   ratingFilter === tab.value
                     ? tab.value === "none"
-                      ? "bg-orange-600/20 text-orange-400 ring-1 ring-orange-600/40"
-                      : "bg-red-600/20 text-red-400 ring-1 ring-red-600/40"
+                      ? "bg-orange-500 text-white shadow-sm"
+                      : "bg-red-600 text-white shadow-sm"
                     : "text-gray-400 hover:text-gray-200 hover:bg-white/5"
-                }`}>
+                }`}
+              >
                 {tab.label}
-                {tab.value !== "" && (
-                  <span className="ml-1 text-gray-600">
+                {tab.value !== "" && !loading && (
+                  <span className={`text-[10px] font-semibold rounded-full px-1 min-w-[16px] text-center ${
+                    ratingFilter === tab.value ? "bg-white/20 text-white" : "bg-gray-700 text-gray-400"
+                  }`}>
                     {tab.value === "none"
                       ? feedbacks.filter(fb => fb.user_priority == null && fb.tu_danh_gia == null && fb.tech_rating == null).length
                       : tab.value === "no_user"
@@ -1088,27 +1191,63 @@ export default function FeedbackListPage() {
 
         {/* Clear all */}
         {hasActiveFilter && (
-          <div className="pt-1 border-t border-gray-800">
+          <div className="flex items-center pt-1 border-t border-gray-800">
             <button
-              onClick={() => { setStatusFilter(""); setTypeFilter(""); setRatingFilter(""); load(productId, "", ""); }}
-              className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-colors"
             >
-              ✕ Xoá tất cả bộ lọc
+              <X className="w-3 h-3" />
+              Xoá bộ lọc
             </button>
           </div>
         )}
       </div>
 
+      {/* List */}
       {loading ? (
-        <div className="text-center py-16 text-gray-500">Đang tải...</div>
+        <div className="space-y-3">
+          <FeedbackCardSkeleton />
+          <FeedbackCardSkeleton />
+          <FeedbackCardSkeleton />
+          <FeedbackCardSkeleton />
+          <FeedbackCardSkeleton />
+        </div>
       ) : visibleFeedbacks.length === 0 ? (
-        <div className="text-center py-16 text-gray-500">
-          {hasActiveFilter ? "Không có feedback nào khớp bộ lọc." : "Chưa có feedback nào."}
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-gray-100 flex items-center justify-center mb-4">
+            <Inbox className="w-7 h-7 text-gray-400" />
+          </div>
+          <p className="text-sm font-medium text-gray-700 mb-1">
+            {hasActiveFilter ? "Không tìm thấy feedback" : "Chưa có feedback nào"}
+          </p>
+          <p className="text-xs text-gray-500 mb-4">
+            {hasActiveFilter
+              ? "Thử bỏ bộ lọc hoặc chọn trạng thái khác."
+              : "Thêm feedback đầu tiên để bắt đầu theo dõi."}
+          </p>
+          {!hasActiveFilter && (
+            <Link
+              href="/feedback/new"
+              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+            >
+              <Plus className="w-4 h-4" />
+              Thêm mới
+            </Link>
+          )}
+          {hasActiveFilter && (
+            <button
+              onClick={clearFilters}
+              className="inline-flex items-center gap-1.5 text-sm px-4 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+            >
+              <X className="w-3.5 h-3.5" />
+              Xoá bộ lọc
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
           {visibleFeedbacks.map(fb => (
-            <FeedbackCard key={fb.id} fb={fb} onRated={handleRated} onOpen={setOpenModalId} />
+            <FeedbackCard key={fb.id} fb={fb} onOpen={setOpenModalId} />
           ))}
         </div>
       )}
