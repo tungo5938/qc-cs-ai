@@ -1,0 +1,110 @@
+Ngày tạo,Loại yêu cầu,Mô tả - text,Mô tả - image,Status,Nguyên nhân ( Tú phân tích ),Hướng giải quyết ( Tú đề xuất ),PIC,Deadline,Tổng điểm ưu tiên,Tú đánh giá ( 10 là quan trọng nhất,Trọng số,User đánh giá ( 10 là quan trọng nhất,Trọng số,User note,Dev đánh giá ( 10 là làm nhanh nhất ),Trọng số,Jira issue
+14/4/2026,Bug,"4816224 - 0588462222
+Shop đã cung cấp mã vận đơn không dính dấu - nhưng AI vẫn phản hồi xin lại mã đơn","photo_2026-04-14_09-12-19.jpg
+QC không reproduce được",Following,AI hỏi lại mã đơn,dev check ,CDN,Tuần sau,"9,6",10,30%,10,50%,Mã đơn đúng cú pháp nhưng không ghi nhận đc yêu cầu cho KH. Chỗ này kéo theo việc miss thông tin và xử lý chậm trễ cho KH,8,20%,
+10/2/2026,Bug,AI rep sai trạng thái đơn hàng: Đang luân chuyển nhưng rep đang giao,Đơn có trên hệ thống GHN mà AI rep chưa thấy đơn này trong hệ thống GHN.jpg,Following,AI hỏi lại mã đơn,dev check ,CDN,Tuần sau,"9,6",10,30%,10,50%,"Liên quan đến tính chính xác về tình trạng ĐH, phản hồi sai dẫn đến việc KH không theo dõi được tình trạng ĐH, kéo theo các Khiếu nại phát sinh",8,20%,
+10/4/2026,Bug,"KH hỏi giao, AI phản hồi tiếp nhận yêu cầu hỏi giao nhưng không tạo ticket",photo_2026-04-10_13-58-29.jpg,Done,"Trạng thái ""storing"" -> nhưng ko tạo ticket hỏi giao, dev đã code yêu cầu này trước đó-> Nghiêm trọng vì số lượng tick hỏi giao lớn",Đã báo CDN hotifx,CDN,,"9,6",10,30%,10,50%,"Yêu cầu này cần xử lý ngay, nếu không tạo tick sẽ bị chậm trễ",8,20%,https://faboshopteam.atlassian.net/browse/GB-829
+14/4/2026,Bug,"AI PHẢN HỒI SAI
+
+GYKAKLRV  3708613 - Hoàng Thành Công
+Đơn hàng trạng thái lưu kho giao, Shop yêu cầu hủy đơn. AI không hướng dẫn Shop tick trả mà báo Shop liên hệ Người gửi để hủy đơn hàng
+
+4398330 - shop bánh đa
+Shop báo đã thay đổi thông tin, yêu cầu luân chuyển đơn. AI phản hồi liên hệ Người gửi để hỗ trợ thay đổi thông tin","photo_2026-04-14_09-19-17.jpg
+photo_2026-04-14_09-45-51.jpg",Following,KB GHN Chat chưa xóa của NG -> NG liên hệ mà AI còn báo liên hệ NG -> Nghe như kiểu đang chọc tức khách hàng,Tú xử lý- Xoá kb người gửi,Tú,24/04,"8,6",9,30%,9,50%,,7,20%,
+7/4/2026,Bug,KH xin số bưu tá đã gửi kèm theo mã đơn nhưng AI lại xin lại mã đơn từ khách hàng,photo_2026-04-07_11-16-20.jpg,Following,AI hỏi lại mã đơn,dev check ,CDN,Tuần sau,"8,6",10,30%,8,50%,,8,20%,
+15/4/2026,Bug,"4685780 - Thuý Hằng
+
+GYKTVLKM đơn hàng Shop khiếu nại giao trễ. AI phản hồi đây không phải là yêu cầu khiếu nại và nhờ Shop cung cấp lại mã đơn ",photo_2026-04-15_11-55-53.jpg,Following,AI hỏi lại mã đơn,dev check ,CDN,Tuần sau,"8,6",10,30%,8,50%,,8,20%,
+10/2/2026,Bug,AI không hiểu kịch bản trước đó khi KH reply tin nhắn cũ,AI không hiểu kịch bản trước đó khi KH reply tin nhắn cũ.jpg,To-do,"Tính năng chưa làm, khách cũng thường dí lại đơn nhiều",Lên task dev làm,CDN,,"8,3",8,30%,9,50%,,7,20%,
+10/2/2026,Bug," TỔNG HỢP CÁC TICKET TẠO SAI VỚI YÊU CẦU KH:
+- 4798894 - Hoàng Nghiêm - mã GY3CM874 -> AI tạo ticket đơn hàng ảo
+- 4068956 - Hòa shop - mã GY3UTFE7 -> Đổi địa chỉ nhưng AI tạo ticket Hỏi Trả
+- 827596 - Thanh Hiền - mã GY3DEVHE ->  MTTT nhưng AI tạo ticket KNTĐ
+- 4839815 - shop tổng hợp - mã GY3NK7KE -> KH hỏi giao, nhưng AI tạo tick khiếu nại
+- 827596 - thanh hiền - mã GYBHGPEN -> MTTT nhưng AI tạo ticket khiếu nại thái độ nhân viên
+- 4873733 - TỔNG KHO TRUNG ANH - mã GY3C7RVA -> KH xin số ship thì AI phản hồi bưu cục, KH báo giao lại nhưng AI tạo ticket COD
+- 4836644 - Gold Shop - mã GY3CPEY6 -> KH xin số ship nhưng AI tạo ticket khiếu nại
+- 4873733 - TỔNG KHO TRUNG ANH - mã GY3N4BY6 -> KH khiếu nại hàng bị hư hỏng nhưng NN vẫn đồng ý nhận hàng, nhờ nv giao lại => AI tạo tick ""Khách hàng phản ánh hàng bị rò rỉ ra ngoài nhưng vẫn giao cho khách.""
+- agribank - 4399095 -  mã GY3PABKH - Khách khiếu nại NN trả ship nhưng AI rep và tạo tick khiếu nại thái độ nhân viên a
+- 5108011 - Tridung - mã GY3VKRHA - KH khiếu nại đã thanh toán phí ship nhưng AI tiếp nhận và tạo tick hỏi trả a
+- mã đơn GY3DTT3W - KH khiếu nại không giao, AI ghi nhận thông tin giao trả
+- 4467160 - Nk fashion - mã GY3LKM7F - Nội dung KH yêu cầu hỏi giao, AI tạo ticket yêu cầu hỏi trả
+- Ngocmunshop - 4278067 - mã GY3PH6E7 - Khách khiếu nại GTBTT nhưng aI rep và tạo phiếu thay đổi thông tin
+-4971131 - Thời trang - mã GY3QL3XG - Shop khiếu nại Sai SOP - GT1P nhưng AI báo Shop đơn hàng đã GTC, khiến KH khó chịu
+- 4798894 - Hoàng Nghiêm - mã GY3CMRPN - kH khiếu nại call log. AI tạo ticket "" Khách hàng đã báo đã nhận hàng nhưng chưa thấy giao""
+- 5117847 - CTCP MY PHAM QUOC TE OME - GY3PVYL4  - KH khiếu nại sai trạng thái - NN đã nhận được hàng. Nhưng AI tiếp nhận phản hồi KH là hỏi trả
+- mã đơn GY3VLADY - KH khiếu nại MTTT và xin thông tin đơn hàng nhưng AI hiểu sai nội dung khiếu nại và dẫn đến 1 đơn tạo 2 tick khiếu nại
+- mã đơn GY3KFDLQ, GY3KFWYF nội dung KH yêu cầu giao ngày 24,25 tháng 2 nhưng AI  tạo ticket báo kho giao ngày 23/2
+- mã đơn GYBMAWCG - nội dung KH báo liên quan đến cước. AI ghi nhận khiếu nại liên quan đến tiền thu hộ
+- 1107345 - Giày đẹp Giá Rẻ ( ĐÀO VĂN NGHĨA) - mã đơn GỖPDDHL - KH khiếu nại sai trạng thái, AI tạo ticket lấy hàng trả a
+- 4777747 - Shop Phụ Kiện thông minh - Shop rep trên đơn GYBAE6FF  -  Nhưng AI chat ghi nhận đơn  GYBMAWCG và reopen phiếu GYBMAWCG. Nhờ team kiểm tra lại giúp em a
+- 4729944 - Vân Korea  - Đơn hàng GY3PKB7E shop hỏi giao nhưng AI tạo ticket khiếu nại mâu thuẫn thông tin nhờ team kiểm tra giúp em a
+- 5106064 - si tuyển quỳnh phương - GYBUXWPN_PR - Shop phản hồi thông tin đến bù. AI phản hồi Shop ghi nhận thông tin Shop khiếu nại lừa đảo. Khiến Shop không hiểu a
+- 3164888 - Napoli chính hãng - KH yêu cầu hỏi lấy ĐH GY3WWTQP, hoàn toàn không đề cập đến mã đơn GYBYDFFW. Nhưng AI vẫn tiếp nhận phản hồi và tạo ticket cho mã đơn GYBYDFFW a
+- 4729944 - Vân Korea  - KH khiếu nại giao 1 lần đã chuyển chờ kích giao lại. AI tạo phiếu sai trạng thái nội dung ""GY3CTL4U đã đánh giao lại nhưng không rõ lý do"" không rõ nội dung khiếu nại từ Shop. Nhờ team kiểm tra a
+- GY3P9TMD -  4659472 - đồ rẻ - Shop khiếu nại MTTT NN nhận hàng nhưng bưu tá không giao => AI tạo khiếu nại Sai trạng thái - NN đã nhận hàng nhưng không cập nhật GTC
+-3539060 - truonganhpharm - KH yêu cầu xử lí đơn GY36G44Y  không liên quan đến GYBTKNM4 nhưng AI ghi nhận cả đơn GYBTKNM4 và reopen phiếu với nội dung ""Khách hàng phản ánh đơn hàng GYBTKNM4 có sai trạng thái, yêu cầu hỗ trợ xác minh""  không hề liên quan gì đơn.
+- 4820414 - Hương Thiên Trường - Bán Lẻ - KH khiếu nại 1 loại vấn đề khiếu nại  nhưng lại 2 phiếu cùng nội dung khiếu nại nhưng lại khác loại khiếu nại - Ticket 35376914, 35376915
+- 3596292 - ĐẶNG NGUYỄN NGỌC ANH- KH báo đã thay đổi số điện thoại, giao lại theo số mới. AI phản hồi liên hệ Người bán để được thay đổi số điện thoại.
+- 4648576 - Phu kien thoi trang - KH hỏi giao, gọi Ship không nghe. AI tạo phiếu MTTT Ship không gọi. Nhờ team kiểm tra giúp em
+- KH yêu cầu đổi địa chỉ, AI phản hồi thành khiếu nại sai trạng thái đơn hàng. Nhờ team kiểm tra lại giúp em a
+- 4971131 - Thời trang - Shop khiếu nại mã đơn GY37YMMG, AI tiếp nhận và tạo tick 1 mã đơn khác a
+- 4746 - Giao hàng Goship - GY3WA3W8 - Shop cần hỗ trợ thông tin đơn hàng, mã đơn đúng với ID Shop nhưng AI cứ báo khách tự liên hệ GoShip để hỗ trợ là như thế nào a?
+- 3487422 - Ni ni
+Shop khiếu nại NN không từ chối nhận hàng và muốn giao lại đơn hàng.
+=> AI phản hồi hướng dẫn NN từ chối nhận hàng trực tiếp với bưu tá a
+- 4470421 - NK FASHION - Shop khiếu nại, AI phản hồi hỗ trợ nhưng AI không tạo ticket để xử lý. Nhờ team xem giúp em.
+- 5053138 - 0347700813 - KH hỏi giao nhưng AI tạo tick khiếu nại , nhờ team hỗ trợ giúp e
+- 58803 - Khánh Hòa - Shop xin địa chỉ kho, AI tiếp nhận khiếu nại và tạo phiếu trả hàng trở
+- 4123576 - Shop Mỹ Phẩm Miền Bắc  - SHop khiếu nại MTTT Call log, yêu cầu đến cước => AI ghi nhận thông tin khiếu nại hàng thất lạc
+- 4457627 - CN TMC HÀ NỘI - NG yêu cầu giao, AI tiếp nhận hỏi trả.
+- GY3AY6EL 2712686 - NIKO - XNK - Shop báo luân chuyển đơn hàng => AI tiếp nhận tạo tick khiếu nại MTTT
+- 4034970 - Shop tuấn  - GY3XPK9Y - Đơn hàng Shop khiếu nại bưu tá không đồng ý gửi hàng vào nhà, sau đó gửi STK cho NN chuyển khoản sau => AI ghi nhận tạo khiếu nại NN đã chuyển khoản nhưng shipper không nhận tiền
+
+- GY4ULU8C - 333117 - AMYRA - Shop khiếu nại Sai SOP => AI tiếp nhận thông tin hỏi trả
+- 4722373 - Dung MC - KH báo đổi địa chỉ đơn giao lại, AI phản hồi xin thông tin thay đổi nhưng tạo phiếu khiếu nại hỏi về trạng thái đơn
+- 4942593 - CÔ THẮM LINEN - KH hỏi giao nhưng AI phản hồi hỏi lại KH cần hỗ trợ hỏi  giao hay hỏi trả và không tạo tick a
+- 333117 - AMYRA - KH khiếu nại Sai SOP - GT1P, AI tiếp nhận tạo tick hỏi trả a
+- GYKL73VY 333117 - AMYRA - Shop yêu cầu GT1P, AI tiếp nhận tạo tick với nội dung bưu tá log ảo sau 22h. Nội dung khiếu nại khác xa với yêu cầu KH quá a
+- GYK7TX6L 4264387 - Thuý Vân Shop hỏi giao, đơn hàng còn lượt giao. AI tiếp nhận báo hỏi trả a
+- 3240201 - Huỳnh thị hà - Shop xin SDT => AI tiếp nhận tạo tick MTTT báo Shipper không cung cấp SDT a
+- 4995990 GY4XLQQV   -  KH khiếu nại nhầm hàng, AI tự phản hồi cam kết đền bù chuyển xu, Cs chưa chốt đền bù hay đền gì cho đơn hàng. Nhờ team kiểm tra lại giúp em  a
+GYK9LVQT Đơn hàng Shop báo đã sửa thông tin và yêu cầu giao lại theo thông tin mới, nhưng AI không tạo tick và báo NG liên hệ NG để được xử lý a
+- 333117 - AMYRA  - GYKX9FMR Shop khiếu nại MTTT - Call log, AI phản hồi tiếp nhận thông tin khiếu nại về COD - công nợ a
+- GYKYGPYQ - 2712686 - NIKO - XNK - Shop KN nhưng AI phản hồi hỏi giao a",,To-do,Ticket được tạo chưa đúng với ý định của khách do đang chưa theo rulebased,Đã lên task,CDN,Dự kiến 2 tuần có bản test,"8,2",10,30%,10,50%,Liên quan đến việc xử lý chính xác yêu cầu của khách hàng nên không thể sai sót được,1,20%,
+7/4/2026,Bug,"Shop khiếu nại thiếu hàng, đã cung cấp mã đơn hàng tuy nhiên AI lại yêu cầu Shop cung cấp thêm SDT",photo_2026-04-07_14-28-10.jpg,Following,Kb của GHN Chat,Tú xử lý,Tú,24/04,"8,1",9,30%,8,50%,,7,20%,
+10/2/2026,Bug,"Tạo ticket bị lỗi và trong quá trình retry thì AI phản hồi nội dung ""gặp lỗi khi xử lý""",gặp lỗi khi xử lý.jpg,To-do,"AI nhận kết quả trả lỗi khi tạo ticket, case này cũng hay xảy ra","-Tú - Bổ sung kịch bản kiểm tra đơn hàng thành công thì sao, nếu kiểm tra lỗi thì sao. Đơn hàng ko tồn tại trả lỗi sao
+- Hào check xem status ""kiểm tra lỗi"" và đơn hàng ko tồn tại có trả ra message riêng ko",Tú + CDN,,"7,8",8,30%,8,50%,,7,20%,
+20/4/2026,Bug,AI không tạo hỏi GLT mà chỉ gửi thông tin đơn hàng,https://faboshopteam.atlassian.net/browse/GB-834,Following,,,CDN,,"7,8",8,30%,8,50%,,7,20%,https://faboshopteam.atlassian.net/browse/GB-834
+1/4/2026,Bug,Bỏ kịch bản: Hỗ trợ giao theo giờ cố định 8h-21h hằng ngày,,Following,"kb bỏ kịch bản giao theo khung giờ, b2c",Liên hệ tech GHN,GHN,,"7,8",9,30%,9,50%,,3,20%,Lân hứa 07/04 xong
+10/2/2026,Bug,Đơn đã chuyển trạng thái chuyển hoàn nhưng AI vẫn reply KH có thể ra bưu cục nhận hàng,Đơn đã chuyển trạng thái chuyển hoàn nhưng AI vẫn reply KH có thể ra bưu cục nhận hàng.jpg,To-do,???,???,CDN,,"7,7",6,30%,9,50%,,7,20%,
+10/2/2026,Bug,Lỡ thời gian giao dự kiến nhưng AI vẫn tạo ticket là hỏi giao và khiếu nại,,To-do,Ticket được tạo chưa đúng với ý định của khách do đang chưa theo rulebased,Đang triển khai,CDN,,"7,2",10,30%,8,50%,,1,20%,
+31/3/2026,Bug,"Thay đổi cách phản hồi khi khách B2C sát shipper khi hệ thống ko lấy được số điện thoại/ hoặc không có số điện thoại
+",,Following,"kb bỏ kịch bản sát shipper ra khỏi GHN Chat, b2c",Tú xử lý - Xoá kb từ chối sát B2C,Tú,24/04,7,7,30%,7,50%,,7,20%,GB-816: [CSC] [B2C] Thay đổi cách AI phản hồi khi hệ thống không lấy/không có sát shipper
+14/4/2026,Bug,"4663432 - SHOP ĐÈN TRANG TRÍ
+Đơn hàng Shop khiếu nại bưu tá thu dư tiền NN, AI tiếp nhận thông tin nhưng không tạo tick khiếu nại","photo_2026-04-14_09-17-41.jpg
+QC không reproduce được",To-do,Tick này bị trùng -> hệ thống ko tạo nhưng vẫn ghi tiếp nhận -> CS đang hiểu là bug ticket chưa được tiếp nhận -- https://ghncs.freshdesk.com/a/search/tickets?term=GYKAW886,Nếu trùng thì thay đổi message khác,Tú,,"6,8",7,30%,9,50%,,1,20%,
+10/2/2026,Bug,"View chat của CS AI không đồng bộ với GHN
+- App chat tin KH báo đến 16h03
+- CS AI chat chỉ mới cập nhật đến 15h38",,Done,,,,,"6,7",9,30%,8,50%,,,20%,
+10/4/2026,Bug,"Shop xin SDT bưu tá, AI phản hồi cho SDT của Shop a",photo_2026-04-10_08-52-03.jpg,To-do,Gọi api order -> sát đúng mà AI phản hồi đúng là của bưu tá -> Nhưng AI lại phản hồi  của người gửi -> case này ít xảy ra,Tú bổ sung kịch bản,Tú,,"6,2",6,30%,6,50%,,7,20%,
+15/4/2026,Bug,"2712686 - NIKO - XNK
+GYKWGCM8  Đơn hàng Shop báo hỏi giao, nhưng AI không hiểu và không tạo tick",photo_2026-04-15_08-47-07.jpg,Following,"AI trả lời ổn khi hỏi lại vấn đề của khách hàng -> Khách ghi ko rõ yêu cầu ""ct"" là cái gì",Bổ sung kb về thuật ngữ của khách,Tú,24/04,"6,2",6,30%,6,50%,,7,20%,
+31/3/2026,Bug,Một loạt CSO bị văng ra ngoài vào ngày 24/02,,To-do,Do GHN,Liên hệ tech GHN,GHN,,"5,8",6,30%,6,50%,,5,20%,Đã báo nhưng chưa được sipport
+20/4/2026,Bug,KH đã nhắn mã đơn nhưng AI vẫn xin lại mã đơn,"Issue này raise bởi b2c và telesales
+- 4010424 - giày dép An An , GYK4YMXL
+- 2844923 - Hoàng Minh GYKR88VF",To-do,AI hỏi lại mã đơn,dev check ,CDN,,"5,6",,30%,8,50%,,8,20%,https://faboshopteam.atlassian.net/browse/GB-835
+10/2/2026,Bug,AI tự động thêm ký tự vào mã đơn và báo ko tìm thấy mã ,AI tự động thêm ký tự vào mã đơn và báo ko tìm thấy mã.png,To-do,Viết script lỗi chính tả để sửa được. Gồm luôn khách nhập thêm ví dụ {mã_đơn}- viết liền thì AI ko hiểu,Viết script lỗi chính tả để sửa được,CDN,,"5,5",6,30%,7,50%,,1,20%,
+10/2/2026,Bug,AI đọc sai mã đơn khi KH gửi hình,AI đọc sai mã đơn khi KH gửi hình.jpg,To-do,Chưa xác định được có nhiều hay ko,Đang tìm giải pháp - trong hệ thống có rất nhiều mã,CDN,,"5,5",6,30%,7,50%,,1,20%,
+8/4/2026,Bug,"AI tạo trùng 2 tick khiếu nại cùng 1 vấn đề ở cùng 1 thời điểm
+mã đơn hàng: GYK9FGNB
+mã ticket: 35918587, 35918588","Untitled.png
+thời gian tạo là y chang nhau",To-do,"Hệ thống gọi tool song song cùng 1 lúc, đã từng gặp 2-3 case",Đang nghiên cứu,CDN,,"4,5",6,30%,5,50%,,1,20%,https://faboshopteam.atlassian.net/browse/GB-828
+10/2/2026,Bug,Retry tạo lại ticket bị lâu,,Done,"GHN LIMIT, dự kiến cuối tháng 2 mới qua lại zammad",Liên hệ tech GHN,GHN,,"3,2",4,30%,4,50%,,,20%,
+10/2/2026,Bug,AI hiểu sai kịch bản về trường hợp KH yêu cầu gỡ khiếu nại,KH đề cập đến đơn mới nhưng AI vẫn hiểu là đơn cũ.jpg,Following,"Khách nói nguyên văn ""đơn mới cũng bị"" nhưng ko đề cập mã đơn -> bối cảnh này thì AI khó mà hiểu và case cũng ít ",Theo dõi thêm,Tú,,"3,2",4,30%,4,50%,,,20%,
+10/2/2026,Bug,AI tự đề cập đến mã đơn không tồn tại dù KH không đề cập đến,AI tự đề cập đến mã đơn không tồn tại dù KH không đề cập đến.jpg,Done,,,,,2,,30%,4,50%,,,20%,
+10/2/2026,Bug,KH đề cập đến đơn mới nhưng AI vẫn hiểu là đơn cũ,KH đề cập đến đơn mới nhưng AI vẫn hiểu là đơn cũ.jpg,Cancel,"AI trả lời yêu cầu đã được tiếp nhận ở thời điểm hiện tại, ko phải ""là đã ghi nhận trước đó"" ",,,,0,0,30%,0,50%,,0,20%,
+10/2/2026,Bug,KH reply tin nhắn có 3 mã nhưng AI chỉ tạo ticket cho 1 mã,KH reply tin nhắn có 3 mã nhưng AI chỉ tạo ticket cho 1 mã.jpg,Cancel,"2 đơn hỏi giao còn lại đã có ticket trước đó nên reply vào ticket tồn tại
+",,,,0,0,30%,0,50%,,0,20%,
+9/4/2026,Bug,KH báo đơn thất lạc nhưng AI không tạo ticket,photo_2026-04-09_14-20-26.jpg,Cancel,"Ý định của khách ko rõ ràng, AI đã hỏi lại để chắc chắn",,,,0,0,30%,0,50%,,0,20%,

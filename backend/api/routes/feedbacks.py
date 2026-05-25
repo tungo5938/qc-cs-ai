@@ -21,6 +21,27 @@ from services import gsheet_service
 
 router = APIRouter(prefix="/feedbacks", tags=["feedbacks"])
 
+
+def _fb_out(feedback: Feedback, *, for_list: bool = False) -> dict:
+    d = FeedbackOut.model_validate(feedback).model_dump()
+    d["sprint_name"] = feedback.sprint.name if feedback.sprint else None
+    if for_list:
+        d["analysis"] = None
+        content = d.get("raw_content") or ""
+        if len(content) > 400:
+            d["raw_content"] = content[:400]
+    return d
+
+
+def _production_deadline_from_sprint(sprint) -> Optional[str]:
+    """YYYY-MM-DD from 'Thông báo Production' meeting, if scheduled."""
+    if not sprint or not getattr(sprint, "meetings", None):
+        return None
+    for m in sprint.meetings:
+        if "Thông báo Production" in (m.name or "") and m.scheduled_at:
+            return m.scheduled_at.date().isoformat()
+    return None
+
 # ── Type keywords ────────────────────────────────────────────────────────────
 
 _BUG_KEYWORDS = [
@@ -198,7 +219,7 @@ async def _background_analyze(feedback_id: str) -> None:
     async with AsyncSessionLocal() as db:
         result = await db.execute(
             select(Feedback)
-            .options(selectinload(Feedback.analysis))
+            .options(selectinload(Feedback.analysis), selectinload(Feedback.sprint))
             .where(Feedback.id == feedback_id)
         )
         feedback = result.scalar_one_or_none()
@@ -214,19 +235,22 @@ async def list_feedbacks(
     product_id: Optional[str] = None,
     status: Optional[str] = None,
     feedback_type: Optional[str] = None,
+    team: Optional[str] = None,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Feedback).options(selectinload(Feedback.analysis))
+    query = select(Feedback).options(selectinload(Feedback.sprint))
     if product_id:
         query = query.where(Feedback.product_id == product_id)
     if status:
         query = query.where(Feedback.status == status)
     if feedback_type:
         query = query.where(Feedback.feedback_type == feedback_type)
+    if team:
+        query = query.where(Feedback.team == team)
     query = query.order_by(Feedback.created_at.desc())
     result = await db.execute(query)
     feedbacks = result.scalars().all()
-    return [FeedbackOut.model_validate(f).model_dump() for f in feedbacks]
+    return [_fb_out(f, for_list=True) for f in feedbacks]
 
 
 @router.post("", status_code=201)
@@ -281,13 +305,13 @@ async def get_feedback(
 ):
     result = await db.execute(
         select(Feedback)
-        .options(selectinload(Feedback.analysis))
+        .options(selectinload(Feedback.analysis), selectinload(Feedback.sprint))
         .where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:
         raise HTTPException(404, "Feedback not found")
-    return FeedbackOut.model_validate(feedback).model_dump()
+    return _fb_out(feedback)
 
 
 @router.post("/{feedback_id}/analyze")
@@ -297,7 +321,7 @@ async def analyze_feedback(
 ):
     result = await db.execute(
         select(Feedback)
-        .options(selectinload(Feedback.analysis))
+        .options(selectinload(Feedback.analysis), selectinload(Feedback.sprint))
         .where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
@@ -309,11 +333,18 @@ async def analyze_feedback(
 
     result = await db.execute(
         select(Feedback)
-        .options(selectinload(Feedback.analysis))
+        .options(selectinload(Feedback.analysis), selectinload(Feedback.sprint))
         .where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
-    return FeedbackOut.model_validate(feedback).model_dump()
+    return _fb_out(feedback)
+
+
+class ImportSheetBody(BaseModel):
+    sheet_url: str
+    product_id: str
+    team: Optional[str] = None  # "B2C" | "TEL" | "C2C"
+    sheet_type: str = "b2c_bug"  # only "b2c_bug" supported for now
 
 
 class RateBody(BaseModel):
@@ -365,10 +396,10 @@ async def rate_feedback(
     await db.commit()
 
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
-    return FeedbackOut.model_validate(feedback).model_dump()
+    return _fb_out(feedback)
 
 
 async def _export_feedbacks(
@@ -551,6 +582,75 @@ async def sync_sheet(
     return {"imported": imported, "skipped": skipped, "total_rows": len(rows)}
 
 
+@router.post("/import-sheet")
+async def import_from_sheet(body: ImportSheetBody, db: AsyncSession = Depends(get_db)):
+    """
+    Import feedbacks from a B2C bug tracking Google Sheet.
+    Parses all 18 columns, creates FeedbackAnalysis records where available.
+    Does not deduplicate — intended for one-time or manual imports.
+    """
+    if body.sheet_type != "b2c_bug":
+        raise HTTPException(400, "Only sheet_type='b2c_bug' is supported")
+
+    product = await db.get(Product, body.product_id)
+    if not product:
+        raise HTTPException(404, "Product not found")
+
+    try:
+        rows = await gsheet_service.fetch_b2c_bug_rows(body.sheet_url)
+    except Exception as e:
+        raise HTTPException(502, f"Failed to fetch sheet: {e}")
+
+    if not rows:
+        return {"inserted": 0, "skipped": 0, "message": "Sheet trống hoặc không có dữ liệu"}
+
+    inserted = 0
+    for row in rows:
+        fb = Feedback(
+            id=gen_uuid(),
+            product_id=body.product_id,
+            raw_content=row["raw_content"],
+            media_urls=row.get("media_urls"),
+            submitted_by=row.get("submitted_by"),
+            source="manual",
+            team=body.team,
+            feedback_type=row.get("feedback_type", "unclear"),
+            status=row.get("status", "draft"),
+            deadline=row.get("deadline"),
+            priority_score=row.get("priority_score"),
+            tu_danh_gia=row.get("tu_danh_gia"),
+            tu_danh_gia_note=row.get("tu_danh_gia_note"),
+            user_priority=row.get("user_priority"),
+            user_priority_note=row.get("user_priority_note"),
+            tech_rating=row.get("tech_rating"),
+        )
+        raw_dt = row.get("created_at_raw", "")
+        for fmt in ("%d/%m/%Y", "%d/%m/%y"):
+            try:
+                from datetime import datetime as _dt
+                fb.created_at = _dt.strptime(raw_dt, fmt)
+                break
+            except ValueError:
+                pass
+
+        db.add(fb)
+
+        root_cause = row.get("root_cause")
+        solution_hint = row.get("solution_hint")
+        if root_cause or solution_hint:
+            db.add(FeedbackAnalysis(
+                id=gen_uuid(),
+                feedback_id=fb.id,
+                root_cause=root_cause,
+                solution_hint=solution_hint,
+            ))
+
+        inserted += 1
+
+    await db.commit()
+    return {"inserted": inserted, "skipped": 0}
+
+
 @router.patch("/{feedback_id}")
 async def update_feedback(
     feedback_id: str,
@@ -559,23 +659,40 @@ async def update_feedback(
 ):
     """Edit title and/or raw_content of a feedback."""
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:
         raise HTTPException(404, "Feedback not found")
-    if body.title is not None:
-        feedback.title = body.title
-    if body.raw_content is not None:
-        feedback.raw_content = body.raw_content
-    if body.status is not None:
-        feedback.status = body.status
+    for field in body.model_fields_set:
+        setattr(feedback, field, getattr(body, field))
+
+    if "sprint_id" in body.model_fields_set:
+        if body.sprint_id:
+            from models.sprint import Sprint
+
+            sprint_result = await db.execute(
+                select(Sprint)
+                .options(selectinload(Sprint.meetings))
+                .where(Sprint.id == body.sprint_id)
+            )
+            sprint = sprint_result.scalar_one_or_none()
+            if sprint and "deadline" not in body.model_fields_set:
+                auto_deadline = _production_deadline_from_sprint(sprint)
+                if auto_deadline:
+                    feedback.deadline = auto_deadline
+        elif "deadline" not in body.model_fields_set:
+            feedback.deadline = None
+
     await db.commit()
+    await db.refresh(feedback)
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback)
+        .options(selectinload(Feedback.analysis), selectinload(Feedback.sprint))
+        .where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
-    return FeedbackOut.model_validate(feedback).model_dump()
+    return _fb_out(feedback)
 
 
 @router.patch("/{feedback_id}/analysis")
@@ -586,7 +703,7 @@ async def update_analysis(
 ):
     """Edit root_cause and/or solution_hint in FeedbackAnalysis."""
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:
@@ -599,10 +716,10 @@ async def update_analysis(
         feedback.analysis.solution_hint = body.solution_hint
     await db.commit()
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
-    return FeedbackOut.model_validate(feedback).model_dump()
+    return _fb_out(feedback)
 
 
 @router.post("/{feedback_id}/generate-solution")
@@ -612,7 +729,7 @@ async def generate_solution(
 ):
     """AI-generate solution_hint and save to FeedbackAnalysis."""
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:
@@ -655,10 +772,10 @@ async def generate_solution(
 
     await db.commit()
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
-    return FeedbackOut.model_validate(feedback).model_dump()
+    return _fb_out(feedback)
 
 
 @router.post("/{feedback_id}/suggest-actions")
@@ -668,7 +785,7 @@ async def suggest_actions(
 ):
     """AI-suggest action items from feedback analysis. Returns list of {title, assignee}."""
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:
@@ -697,7 +814,7 @@ async def generate_ac(
 ):
     """AI-generate acceptance criteria from solution_hint. Returns plain text, does NOT save to DB."""
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:
@@ -721,7 +838,7 @@ async def create_jira_ticket(
     """Create a Jira ticket from feedback data. Uploads attachments if requested."""
     from services import jira_service
     result = await db.execute(
-        select(Feedback).options(selectinload(Feedback.analysis)).where(Feedback.id == feedback_id)
+        select(Feedback).options(selectinload(Feedback.analysis), selectinload(Feedback.sprint)).where(Feedback.id == feedback_id)
     )
     feedback = result.scalar_one_or_none()
     if not feedback:

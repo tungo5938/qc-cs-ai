@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import Link from "next/link";
@@ -872,29 +872,43 @@ function SprintCell({
 
   async function select(sprint: import("@/lib/types").Sprint) {
     setOpen(false);
-    let deadline: string | null = null;
+    const deadline =
+      sprint.production_deadline ??
+      getProductionDeadline(sprint) ??
+      null;
+    const prev = { sprint_id: fb.sprint_id, sprint_name: fb.sprint_name, deadline: fb.deadline };
+    onSaved({ sprint_id: sprint.id, sprint_name: sprint.name, deadline });
     try {
-      const full = await api.sprints.get(sprint.id);
-      deadline = getProductionDeadline(full);
-    } catch {}
-    const updated = await api.feedbacks.update(fb.id, { sprint_id: sprint.id, deadline });
-    onSaved({ sprint_id: sprint.id, sprint_name: sprint.name, deadline: updated.deadline ?? deadline });
+      const updated = await api.feedbacks.update(fb.id, { sprint_id: sprint.id, deadline });
+      onSaved({
+        sprint_id: sprint.id,
+        sprint_name: sprint.name,
+        deadline: (updated as Feedback).deadline ?? deadline,
+      });
+    } catch {
+      onSaved(prev);
+    }
   }
 
   async function clear() {
     setOpen(false);
-    await api.feedbacks.update(fb.id, { sprint_id: null, deadline: null });
+    const prev = { sprint_id: fb.sprint_id, sprint_name: fb.sprint_name, deadline: fb.deadline };
     onSaved({ sprint_id: null, sprint_name: null, deadline: null });
+    try {
+      await api.feedbacks.update(fb.id, { sprint_id: null, deadline: null });
+    } catch {
+      onSaved(prev);
+    }
   }
 
   const label = fb.sprint_name ?? (fb.sprint_id ? "Sprint" : "—");
 
   return (
-    <div className="w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+    <div onClick={e => e.stopPropagation()}>
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            className={`w-full text-xs px-1.5 py-0.5 rounded transition hover:ring-1 hover:ring-blue-400 truncate cursor-pointer block text-left ${
+            className={`inline-flex max-w-full text-xs px-1.5 py-0.5 rounded transition hover:ring-1 hover:ring-blue-400 cursor-pointer text-left whitespace-nowrap ${
               fb.sprint_id ? "text-blue-700 font-semibold bg-blue-50" : "text-gray-300 hover:text-blue-500"
             }`}
             title={fb.sprint_name ?? undefined}
@@ -1032,8 +1046,14 @@ function TypeCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feed
   async function select(value: string) {
     setOpen(false);
     if (value === (fb.feedback_type ?? "")) return;
-    const updated = await api.feedbacks.update(fb.id, { feedback_type: value });
-    onSaved({ feedback_type: (updated as Feedback).feedback_type });
+    const prev = fb.feedback_type;
+    onSaved({ feedback_type: value as import("@/lib/types").FeedbackType });
+    try {
+      const updated = await api.feedbacks.update(fb.id, { feedback_type: value });
+      onSaved({ feedback_type: (updated as Feedback).feedback_type });
+    } catch {
+      onSaved({ feedback_type: prev });
+    }
   }
 
   const typeOption = TYPE_OPTIONS.find((o) => o.value === fb.feedback_type);
@@ -1046,15 +1066,15 @@ function TypeCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feed
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 whitespace-nowrap ${
+            className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 ${
               typeOption ? typeColor : "text-gray-300 hover:text-gray-500"
             }`}
-            title="Click để thay đổi loại"
+            title={typeOption ? `${typeOption.label} — click để đổi` : "Chọn loại"}
           >
             {typeOption ? (
               <>
                 <typeOption.Icon className="w-3 h-3 shrink-0" />
-                <span>{typeOption.label}</span>
+                <span className="whitespace-nowrap">{typeOption.label}</span>
               </>
             ) : (
               <span>—</span>
@@ -1149,14 +1169,60 @@ const STATUS_OPTIONS = [
   { value: "done", label: "Done", Icon: DoneIcon },
 ];
 
+/** Hàng ẩn: width cột = label dài nhất trong options (+ sprint dài nhất) */
+function FeedbackTableColumnSizer({ longestSprintName }: { longestSprintName: string }) {
+  const statusLongest = STATUS_OPTIONS.reduce((a, b) =>
+    a.label.length >= b.label.length ? a : b,
+  );
+  const typeLongest = TYPE_OPTIONS.reduce((a, b) =>
+    a.label.length >= b.label.length ? a : b,
+  );
+  const badge = "inline-flex items-center gap-1 text-xs px-1.5 py-0.5 whitespace-nowrap";
+  return (
+    <tr className="h-0 overflow-hidden border-0" aria-hidden>
+      <th className="p-0 border-0 font-normal">
+        <span className="invisible block h-0 overflow-hidden">.</span>
+      </th>
+      <th className="p-0 border-0 font-normal">
+        <span className={`${badge} invisible`}>B2C ▾</span>
+      </th>
+      <th className="p-0 border-0 font-normal">
+        <span className={`${badge} invisible`}>
+          <typeLongest.Icon className="w-3 h-3" />
+          {typeLongest.label} ▾
+        </span>
+      </th>
+      <th className="p-0 border-0 font-normal">
+        <span className={`${badge} invisible`}>
+          <statusLongest.Icon className="w-3 h-3" />
+          {statusLongest.label} ▾
+        </span>
+      </th>
+      <th colSpan={5} className="p-0 border-0" />
+      <th className="p-0 border-0 font-normal">
+        <span className={`${badge} invisible text-blue-700`}>
+          {longestSprintName || "Sprint 00"} ▾
+        </span>
+      </th>
+      <th colSpan={2} className="p-0 border-0" />
+    </tr>
+  );
+}
+
 function StatusCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feedback>) => void }) {
   const [open, setOpen] = useState(false);
 
   async function select(value: string) {
     setOpen(false);
     if (value === fb.status) return;
-    const updated = await api.feedbacks.update(fb.id, { status: value });
-    onSaved({ status: (updated as Feedback).status });
+    const prev = fb.status;
+    onSaved({ status: value as import("@/lib/types").FeedbackStatus });
+    try {
+      const updated = await api.feedbacks.update(fb.id, { status: value });
+      onSaved({ status: (updated as Feedback).status });
+    } catch {
+      onSaved({ status: prev });
+    }
   }
 
   const statusOption = STATUS_OPTIONS.find((o) => o.value === fb.status);
@@ -1168,17 +1234,17 @@ function StatusCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Fe
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 whitespace-nowrap ${statusColor}`}
-            title="Click để thay đổi trạng thái"
+            className={`inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 ${statusColor}`}
+            title={statusOption ? `${statusOption.label} — click để đổi` : "Chọn trạng thái"}
           >
             {statusOption && (
               <statusOption.Icon className="w-3 h-3 shrink-0" />
             )}
-            <span>{statusOption?.label ?? fb.status}</span>
+            <span className="whitespace-nowrap">{statusOption?.label ?? fb.status}</span>
             <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
           </button>
         </PopoverTrigger>
-        <PopoverContent className="w-48 p-1" align="start" sideOffset={4}>
+        <PopoverContent className="w-max min-w-[12rem] p-1" align="start" sideOffset={4}>
           {STATUS_OPTIONS.map((opt) => (
             <button
               key={opt.value}
@@ -1215,8 +1281,14 @@ function TeamCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feed
   async function select(value: string | null) {
     setOpen(false);
     if (value === (fb.team ?? null)) return;
-    const updated = await api.feedbacks.update(fb.id, { team: value });
-    onSaved({ team: (updated as Feedback).team });
+    const prev = fb.team;
+    onSaved({ team: value });
+    try {
+      const updated = await api.feedbacks.update(fb.id, { team: value });
+      onSaved({ team: (updated as Feedback).team });
+    } catch {
+      onSaved({ team: prev });
+    }
   }
 
   const color = fb.team ? (TEAM_COLORS[fb.team] ?? "bg-gray-100 text-gray-600") : "";
@@ -1226,12 +1298,12 @@ function TeamCell({ fb, onSaved }: { fb: Feedback; onSaved: (patch: Partial<Feed
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
-            className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 whitespace-nowrap ${
+            className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded font-medium transition cursor-pointer hover:ring-1 hover:ring-gray-400 ${
               fb.team ? color : "text-gray-300 hover:text-gray-500"
             }`}
-            title="Click để chọn team"
+            title={fb.team ? `${fb.team} — click để đổi` : "Chọn team"}
           >
-            <span>{fb.team ?? "—"}</span>
+            <span className="whitespace-nowrap">{fb.team ?? "—"}</span>
             <ChevronDown className="w-2.5 h-2.5 opacity-50 shrink-0" />
           </button>
         </PopoverTrigger>
@@ -1370,46 +1442,48 @@ function FeedbackRow({
 
   return (
     <tr className="border-b border-gray-100 hover:bg-red-50/30 transition-colors group">
-      {/* Title / content */}
-      <td className="py-2 pl-3 pr-2 max-w-0 w-full">
-        <TitleCell fb={fb} onSaved={p => onRated(fb.id, p)} />
-        {fb.product_name && (
-          <p className="text-xs text-gray-400 truncate">{fb.product_name}</p>
-        )}
+      {/* Title — chiếm phần còn lại; chỉ title bị truncate */}
+      <td className="py-2 pl-3 pr-2 w-full max-w-0">
+        <div className="min-w-0">
+          <TitleCell fb={fb} onSaved={p => onRated(fb.id, p)} />
+          {fb.product_name && (
+            <p className="text-xs text-gray-400 truncate">{fb.product_name}</p>
+          )}
+        </div>
       </td>
 
-      {/* Team */}
-      <td className="py-2 px-2 w-16 overflow-hidden">
+      {/* Team — rộng theo giá trị dài nhất (B2C/TEL/C2C) */}
+      <td className="py-2 px-2 whitespace-nowrap">
         <TeamCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
-      {/* Type */}
-      <td className="py-2 px-2 w-20 overflow-hidden">
+      {/* Type — rộng theo label dài nhất (Chưa rõ) */}
+      <td className="py-2 px-2 whitespace-nowrap">
         <TypeCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
-      {/* Status */}
-      <td className="py-2 px-2 w-36 overflow-hidden">
+      {/* Status — rộng theo label dài nhất (Có solution draft) */}
+      <td className="py-2 px-2 whitespace-nowrap">
         <StatusCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
       {/* User rating */}
-      <td className="py-2 px-1 w-12 text-center" onClick={e => e.stopPropagation()}>
+      <td className="py-2 px-1 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
         <RatingCell value={fb.user_priority} onSave={v => saveRating("user_priority", v)} />
       </td>
 
       {/* PO rating */}
-      <td className="py-2 px-1 w-12 text-center" onClick={e => e.stopPropagation()}>
+      <td className="py-2 px-1 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
         <RatingCell value={fb.tu_danh_gia} onSave={v => saveRating("tu_danh_gia", v)} />
       </td>
 
       {/* Dev rating */}
-      <td className="py-2 px-1 w-12 text-center" onClick={e => e.stopPropagation()}>
+      <td className="py-2 px-1 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
         <RatingCell value={fb.tech_rating} onSave={v => saveRating("tech_rating", v)} />
       </td>
 
       {/* Priority score */}
-      <td className="py-2 px-2 w-14 text-center whitespace-nowrap">
+      <td className="py-2 px-2 whitespace-nowrap text-center">
         {fb.priority_score != null ? (
           <span className="text-xs font-bold text-orange-600">{fb.priority_score.toFixed(1)}</span>
         ) : (
@@ -1418,22 +1492,22 @@ function FeedbackRow({
       </td>
 
       {/* Deadline */}
-      <td className="py-2 px-2 w-24 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
+      <td className="py-2 px-2 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
         <DeadlineCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
-      {/* Sprint */}
-      <td className="py-2 pl-2 w-20 overflow-hidden text-center" onClick={e => e.stopPropagation()}>
+      {/* Sprint — rộng theo tên sprint dài nhất */}
+      <td className="py-2 pl-2 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
         <SprintCell fb={fb} sprints={sprints} onSaved={p => onRated(fb.id, p)} />
       </td>
 
       {/* Notified */}
-      <td className="py-2 px-2 w-10 text-center" onClick={e => e.stopPropagation()}>
+      <td className="py-2 px-2 whitespace-nowrap text-center" onClick={e => e.stopPropagation()}>
         <NotifiedCell fb={fb} onSaved={p => onRated(fb.id, p)} />
       </td>
 
       {/* Open modal */}
-      <td className="py-2 pr-3 pl-1 w-10 text-center">
+      <td className="py-2 pr-3 pl-1 whitespace-nowrap text-center">
         <button
           onClick={e => { e.stopPropagation(); onOpen(fb.id); }}
           className="text-gray-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100 focus:opacity-100"
@@ -1447,6 +1521,8 @@ function FeedbackRow({
     </tr>
   );
 }
+
+const MemoFeedbackRow = memo(FeedbackRow);
 
 // ── Export modal ─────────────────────────────────────────────────────────────
 function ExportModal({
@@ -1528,53 +1604,181 @@ function applyRatingFilter(feedbacks: Feedback[], ratingFilter: string): Feedbac
 
 const PAGE_SIZE = 50;
 
+const TEAM_OPTIONS_IMPORT = ["B2C", "TEL", "C2C"];
+
+function ImportSheetModal({
+  defaultProductId,
+  onClose,
+  onImported,
+}: {
+  defaultProductId: string;
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [sheetUrl, setSheetUrl] = useState("");
+  const [productId, setProductId] = useState(defaultProductId);
+  const [team, setTeam] = useState("B2C");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<{ inserted: number; skipped: number } | null>(null);
+  const [error, setError] = useState("");
+
+  async function handleImport() {
+    if (!sheetUrl.trim() || !productId.trim()) return;
+    setLoading(true);
+    setError("");
+    setResult(null);
+    try {
+      const res = await api.feedbacks.importSheet({ sheet_url: sheetUrl.trim(), product_id: productId.trim(), team, sheet_type: "b2c_bug" });
+      setResult(res);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Import thất bại");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 p-6" onClick={e => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold text-gray-900 mb-1">Import từ Google Sheet</h2>
+        <p className="text-xs text-gray-500 mb-4">Hỗ trợ định dạng B2C bug sheet (18 cột). Sheet phải public hoặc export được.</p>
+
+        <div className="space-y-3 mb-5">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">URL Google Sheet *</label>
+            <input
+              type="url"
+              value={sheetUrl}
+              onChange={e => setSheetUrl(e.target.value)}
+              placeholder="https://docs.google.com/spreadsheets/d/..."
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Product ID *</label>
+            <input
+              type="text"
+              value={productId}
+              onChange={e => setProductId(e.target.value)}
+              placeholder="UUID của product"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 font-mono"
+            />
+            {defaultProductId && <p className="text-xs text-gray-400 mt-0.5">Đã điền từ filter hiện tại</p>}
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Team</label>
+            <div className="flex gap-2">
+              {TEAM_OPTIONS_IMPORT.map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTeam(t)}
+                  className={`px-3 py-1.5 text-xs rounded-lg border transition ${team === t ? "bg-red-600 text-white border-red-600" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {error && <p className="text-xs text-red-600 mb-3">{error}</p>}
+        {result && (
+          <div className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2 mb-3">
+            ✓ Import xong: <strong>{result.inserted}</strong> feedbacks đã thêm.
+          </div>
+        )}
+
+        <div className="flex gap-3 justify-end">
+          <button onClick={result ? onImported : onClose} className="px-4 py-2 text-sm rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50">
+            {result ? "Đóng & tải lại" : "Huỷ"}
+          </button>
+          {!result && (
+            <button
+              onClick={handleImport}
+              disabled={loading || !sheetUrl.trim() || !productId.trim()}
+              className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 font-medium"
+            >
+              {loading ? "Đang import..." : "Import"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 export default function FeedbackListPage() {
   const [feedbacks, setFeedbacks] = useState<Feedback[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [teamFilter, setTeamFilter] = useState("");
   const [ratingFilter, setRatingFilter] = useState("");
-  const [productId, setProductId] = useState<string>("");
+  const [productId, setProductId] = useState<string>(() =>
+    typeof window !== "undefined" ? localStorage.getItem(PRODUCT_FILTER_KEY) || "" : "",
+  );
+  const hasLoadedOnce = useRef(false);
   const [syncing, setSyncing] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showImportSheet, setShowImportSheet] = useState(false);
   const [openModalId, setOpenModalId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [sprints, setSprints] = useState<import("@/lib/types").Sprint[]>([]);
 
-  const load = useCallback((pid: string, status: string, type: string, team: string) => {
-    setLoading(true);
-    setPage(1);
-    api.feedbacks
-      .list({ product_id: pid || undefined, status: status || undefined, feedback_type: type || undefined, team: team || undefined })
-      .then(r => setFeedbacks(r as Feedback[]))
-      .finally(() => setLoading(false));
-    // Load sprints for this product (for the dropdown)
-    api.sprints.list(pid || undefined)
-      .then((s: any[]) => setSprints(s))
+  const loadSprints = useCallback((pid: string) => {
+    api.sprints
+      .list(pid || undefined)
+      .then((s: import("@/lib/types").Sprint[]) => setSprints(s))
       .catch(() => setSprints([]));
   }, []);
 
-  useEffect(() => {
-    const pid = localStorage.getItem(PRODUCT_FILTER_KEY) || "";
-    setProductId(pid);
-    load(pid, statusFilter, typeFilter, teamFilter);
+  const loadFeedbacks = useCallback(
+    (pid: string, status: string, type: string, team: string, opts?: { isInitial?: boolean }) => {
+      if (opts?.isInitial) setInitialLoading(true);
+      else setRefreshing(true);
+      setPage(1);
+      api.feedbacks
+        .list({
+          product_id: pid || undefined,
+          status: status || undefined,
+          feedback_type: type || undefined,
+          team: team || undefined,
+        })
+        .then(r => setFeedbacks(r as Feedback[]))
+        .finally(() => {
+          hasLoadedOnce.current = true;
+          setInitialLoading(false);
+          setRefreshing(false);
+        });
+    },
+    [],
+  );
 
+  useEffect(() => {
+    loadSprints(productId);
+  }, [productId, loadSprints]);
+
+  useEffect(() => {
+    loadFeedbacks(productId, statusFilter, typeFilter, teamFilter, {
+      isInitial: !hasLoadedOnce.current,
+    });
+  }, [productId, statusFilter, typeFilter, teamFilter, loadFeedbacks]);
+
+  useEffect(() => {
     function onStorage(e: StorageEvent) {
       if (e.key === PRODUCT_FILTER_KEY) {
-        const newPid = e.newValue || "";
-        setProductId(newPid);
-        load(newPid, statusFilter, typeFilter, teamFilter);
+        setProductId(e.newValue || "");
       }
     }
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
-  }, [load, statusFilter, typeFilter, teamFilter]);
+  }, []);
 
-  function handleStatusChange(s: string) { setStatusFilter(s); load(productId, s, typeFilter, teamFilter); }
-  function handleTypeChange(t: string) { setTypeFilter(t); load(productId, statusFilter, t, teamFilter); }
-  function handleTeamChange(t: string) { setTeamFilter(t); load(productId, statusFilter, typeFilter, t); }
+  function handleStatusChange(s: string) { setStatusFilter(s); }
+  function handleTypeChange(t: string) { setTypeFilter(t); }
+  function handleTeamChange(t: string) { setTeamFilter(t); }
 
   async function handleSync() {
     if (!productId) return;
@@ -1582,7 +1786,7 @@ export default function FeedbackListPage() {
     try {
       const data = await api.feedbacks.syncSheet(productId);
       alert(`Sync xong: ${data.imported} mới, ${data.skipped} đã có`);
-      load(productId, statusFilter, typeFilter, teamFilter);
+      loadFeedbacks(productId, statusFilter, typeFilter, teamFilter);
     } catch (e: any) {
       alert("Sync failed: " + e.message);
     } finally {
@@ -1603,10 +1807,39 @@ export default function FeedbackListPage() {
   const hasMore = pagedFeedbacks.length < visibleFeedbacks.length;
   const hasActiveFilter = statusFilter !== "" || typeFilter !== "" || teamFilter !== "" || ratingFilter !== "";
 
+  const ratingCounts = useMemo(
+    () => ({
+      none: feedbacks.filter(fb => fb.user_priority == null && fb.tu_danh_gia == null && fb.tech_rating == null).length,
+      no_user: feedbacks.filter(fb => fb.user_priority == null).length,
+      no_po: feedbacks.filter(fb => fb.tu_danh_gia == null).length,
+      no_dev: feedbacks.filter(fb => fb.tech_rating == null).length,
+    }),
+    [feedbacks],
+  );
+
+  const longestSprintName = useMemo(
+    () =>
+      sprints.reduce(
+        (longest, s) => (s.name.length > longest.length ? s.name : longest),
+        "",
+      ),
+    [sprints],
+  );
+
   return (
     <div className="space-y-4">
       {showExport && (
         <ExportModal productId={productId} statusFilter={statusFilter} typeFilter={typeFilter} onClose={() => setShowExport(false)} />
+      )}
+      {showImportSheet && (
+        <ImportSheetModal
+          defaultProductId={productId}
+          onClose={() => setShowImportSheet(false)}
+          onImported={() => {
+            setShowImportSheet(false);
+            loadFeedbacks(productId, statusFilter, typeFilter, teamFilter);
+          }}
+        />
       )}
       {openModalId && (
         <FeedbackDetailModal
@@ -1620,10 +1853,11 @@ export default function FeedbackListPage() {
       <div className="flex items-center justify-between">
         <div className="flex items-baseline gap-2">
           <h1 className="text-xl font-bold text-gray-900">Phản hồi</h1>
-          {!loading && (
+          {!initialLoading && (
             <span className="text-sm text-gray-400">
               {pagedFeedbacks.length}/{visibleFeedbacks.length}
               {feedbacks.length !== visibleFeedbacks.length ? ` (${feedbacks.length} tổng)` : ""}
+              {refreshing ? " · đang tải…" : ""}
             </span>
           )}
         </div>
@@ -1636,6 +1870,9 @@ export default function FeedbackListPage() {
               {syncing ? "Syncing..." : "Sync Sheet"}
             </button>
           )}
+          <button onClick={() => setShowImportSheet(true)} className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition">
+            ↑ Import Sheet
+          </button>
           <Link href="/feedback/new" className="bg-red-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-red-700 transition font-medium">
             + Thêm
           </Link>
@@ -1712,12 +1949,12 @@ export default function FeedbackListPage() {
                 {tab.value !== "" && (
                   <span className="ml-1 text-gray-600">
                     {tab.value === "none"
-                      ? feedbacks.filter(fb => fb.user_priority == null && fb.tu_danh_gia == null && fb.tech_rating == null).length
+                      ? ratingCounts.none
                       : tab.value === "no_user"
-                        ? feedbacks.filter(fb => fb.user_priority == null).length
+                        ? ratingCounts.no_user
                         : tab.value === "no_po"
-                          ? feedbacks.filter(fb => fb.tu_danh_gia == null).length
-                          : feedbacks.filter(fb => fb.tech_rating == null).length}
+                          ? ratingCounts.no_po
+                          : ratingCounts.no_dev}
                   </span>
                 )}
               </button>
@@ -1729,7 +1966,7 @@ export default function FeedbackListPage() {
         {hasActiveFilter && (
           <div className="pt-1 border-t border-gray-800">
             <button
-              onClick={() => { setStatusFilter(""); setTypeFilter(""); setTeamFilter(""); setRatingFilter(""); load(productId, "", "", ""); }}
+              onClick={() => { setStatusFilter(""); setTypeFilter(""); setTeamFilter(""); setRatingFilter(""); }}
               className="text-xs text-gray-500 hover:text-gray-300 transition-colors"
             >
               ✕ Xoá tất cả bộ lọc
@@ -1738,50 +1975,51 @@ export default function FeedbackListPage() {
         )}
       </div>
 
-      {loading ? (
+      {initialLoading ? (
         <div className="text-center py-16 text-gray-500">Đang tải...</div>
-      ) : visibleFeedbacks.length === 0 ? (
+      ) : visibleFeedbacks.length === 0 && !refreshing ? (
         <div className="text-center py-16 text-gray-500">
           {hasActiveFilter ? "Không có feedback nào khớp bộ lọc." : "Chưa có feedback nào."}
         </div>
       ) : (
-        <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-x-auto">
-          <table className="w-full table-fixed min-w-[900px]">
+        <div className={`bg-white border border-gray-100 rounded-xl shadow-sm overflow-x-auto transition-opacity ${refreshing ? "opacity-60 pointer-events-none" : ""}`}>
+          <table className="w-full table-auto">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-left">
-                <th className="py-2 pl-3 pr-2 text-xs font-medium text-gray-500">Tiêu đề</th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-16">Team</th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-20">Loại</th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-36">Trạng thái</th>
-                <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="User rating">
+                <th className="py-2 pl-3 pr-2 text-xs font-medium text-gray-500 w-full min-w-[10rem]">Tiêu đề</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 whitespace-nowrap">Team</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 whitespace-nowrap">Loại</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 whitespace-nowrap">Trạng thái</th>
+                <th className="py-2 px-1 text-xs font-medium text-gray-500 whitespace-nowrap text-center" title="User rating">
                   <span className="flex items-center justify-center gap-0.5">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                   </span>
                 </th>
-                <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="PO rating">
+                <th className="py-2 px-1 text-xs font-medium text-gray-500 whitespace-nowrap text-center" title="PO rating">
                   <span className="flex items-center justify-center gap-0.5">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
                   </span>
                 </th>
-                <th className="py-2 px-1 text-xs font-medium text-gray-500 w-12 text-center" title="Dev rating">
+                <th className="py-2 px-1 text-xs font-medium text-gray-500 whitespace-nowrap text-center" title="Dev rating">
                   <span className="flex items-center justify-center gap-0.5">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                   </span>
                 </th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-14 text-center" title="Priority score">
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 whitespace-nowrap text-center" title="Priority score">
                   <svg className="w-3.5 h-3.5 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                 </th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-24 text-center">Deadline</th>
-                <th className="py-2 pl-2 text-xs font-medium text-gray-500 w-20 text-center">Sprint</th>
-                <th className="py-2 px-2 text-xs font-medium text-gray-500 w-10 text-center" title="Đã thông báo stakeholder">
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 whitespace-nowrap text-center">Deadline</th>
+                <th className="py-2 pl-2 text-xs font-medium text-gray-500 whitespace-nowrap text-center">Sprint</th>
+                <th className="py-2 px-2 text-xs font-medium text-gray-500 whitespace-nowrap text-center" title="Đã thông báo stakeholder">
                   <svg className="w-3.5 h-3.5 mx-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
                 </th>
-                <th className="py-2 pr-3 pl-1 w-10"></th>
+                <th className="py-2 pr-3 pl-1 whitespace-nowrap"></th>
               </tr>
+              <FeedbackTableColumnSizer longestSprintName={longestSprintName} />
             </thead>
             <tbody>
               {pagedFeedbacks.map(fb => (
-                <FeedbackRow key={fb.id} fb={fb} sprints={sprints} onRated={handleRated} onOpen={setOpenModalId} />
+                <MemoFeedbackRow key={fb.id} fb={fb} sprints={sprints} onRated={handleRated} onOpen={setOpenModalId} />
               ))}
             </tbody>
           </table>

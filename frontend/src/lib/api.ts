@@ -83,11 +83,12 @@ export const api = {
       request<any>("/api/priority-config", { method: "PUT", body: JSON.stringify(body) }),
   },
   feedbacks: {
-    list: (params?: { product_id?: string; status?: string; feedback_type?: string }) => {
+    list: (params?: { product_id?: string; status?: string; feedback_type?: string; team?: string }) => {
       const qs = new URLSearchParams();
       if (params?.product_id) qs.set("product_id", params.product_id);
       if (params?.status) qs.set("status", params.status);
       if (params?.feedback_type) qs.set("feedback_type", params.feedback_type);
+      if (params?.team) qs.set("team", params.team);
       const query = qs.toString() ? `?${qs}` : "";
       return request<any[]>(`/api/feedbacks${query}`);
     },
@@ -99,7 +100,7 @@ export const api = {
         `/api/feedbacks/sync-sheet?product_id=${productId}`,
         { method: "POST" }
       ),
-    update: (id: string, body: { title?: string; raw_content?: string }) =>
+    update: (id: string, body: { title?: string | null; raw_content?: string; sprint_id?: string | null; deadline?: string | null; status?: string; feedback_type?: string | null; team?: string | null; notified?: boolean }) =>
       request<any>(`/api/feedbacks/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     updateAnalysis: (id: string, body: { root_cause?: string; solution_hint?: string }) =>
       request<any>(`/api/feedbacks/${id}/analysis`, { method: "PATCH", body: JSON.stringify(body) }),
@@ -111,28 +112,8 @@ export const api = {
       request<{ actions: Array<{ title: string; assignee: string }> }>(`/api/feedbacks/${id}/suggest-actions`, { method: "POST" }),
     createJira: (id: string, body: { title: string; raw_content: string; root_cause?: string; solution_hint?: string; acceptance_criteria: string; sprint_name?: string; epic_key?: string; upload_attachments?: boolean }) =>
       request<{ key: string; url: string }>(`/api/feedbacks/${id}/create-jira`, { method: "POST", body: JSON.stringify(body) }),
-  },
-  solutions: {
-    list: (params?: { product_id?: string; status?: string }) => {
-      const qs = new URLSearchParams();
-      if (params?.product_id) qs.set("product_id", params.product_id);
-      if (params?.status) qs.set("status", params.status);
-      const query = qs.toString() ? `?${qs}` : "";
-      return request<any[]>(`/api/solutions${query}`);
-    },
-    get: (id: string) => request<any>(`/api/solutions/${id}`),
-    update: (id: string, data: any) => request<any>(`/api/solutions/${id}`, { method: "PUT", body: JSON.stringify(data) }),
-    approve: (id: string) => request<any>(`/api/solutions/${id}/approve`, { method: "POST" }),
-    reject: (id: string, reason: string) =>
-      request<any>(`/api/solutions/${id}/reject`, { method: "POST", body: JSON.stringify({ rejection_reason: reason }) }),
-    patchCanvas: (id: string, tldrawData: object) =>
-      request<any>(`/api/solutions/${id}/canvas`, { method: "PATCH", body: JSON.stringify({ tldraw_data: tldrawData }) }),
-    patchPrd: (id: string, prdContent: object) =>
-      request<any>(`/api/solutions/${id}/prd`, { method: "PATCH", body: JSON.stringify({ prd_content: prdContent }) }),
-    patchJiraEpic: (id: string, epicKey: string) =>
-      request<any>(`/api/solutions/${id}/jira-epic`, { method: "PATCH", body: JSON.stringify({ jira_epic_key: epicKey }) }),
-    chat: (id: string, message: string, jiraTickets: any[]) =>
-      request<any>(`/api/solutions/${id}/chat`, { method: "POST", body: JSON.stringify({ message, jira_tickets: jiraTickets }) }),
+    importSheet: (body: { sheet_url: string; product_id: string; team?: string; sheet_type?: string }) =>
+      request<{ inserted: number; skipped: number; message?: string }>("/api/feedbacks/import-sheet", { method: "POST", body: JSON.stringify(body) }),
   },
   feedbackRating: {
     rate: (id: string, body: { user_priority?: number; user_priority_note?: string; tu_danh_gia?: number; tu_danh_gia_note?: string; tech_rating?: number; tech_rating_note?: string }) =>
@@ -259,5 +240,14 @@ export const api = {
       const qs = new URLSearchParams(params as Record<string, string>).toString();
       return request<ActionItem[]>(`/api/roadmap/tasks?${qs}`);
     },
+  },
+  sprints: {
+    list: (product_id?: string) => {
+      const qs = product_id ? `?product_id=${product_id}` : "";
+      return request<any[]>(`/api/sprints${qs}`);
+    },
+    get: (id: string) => request<any>(`/api/sprints/${id}`),
+    create: (body: { product_id: string; name: string; start_date: string }) =>
+      request<any>("/api/sprints", { method: "POST", body: JSON.stringify(body) }),
   },
 };
