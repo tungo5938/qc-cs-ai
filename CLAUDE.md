@@ -29,34 +29,76 @@ cd backend && python3 -m alembic upgrade head
 
 ## Auth Flow — CRITICAL for UI Testing
 
-The portal uses **sessionStorage-based email gate**, not cookies or JWTs.
-
-### How it works
-1. On any page load, `EmailGate` checks `sessionStorage.getItem("qc_user_email")`
-2. If missing/invalid → shows email input form (must be `@ghn.vn` or `@ghn.com.vn`)
-3. If valid → renders the page
-4. `/admin/*` routes additionally redirect to `/` if email is missing
+The app uses **NextAuth** with Google OAuth + JWT session cookies. The middleware (`src/middleware.ts`) protects all routes except `/login` and `/api/auth/*`.
 
 ### Admin access
-The "Quản trị" nav link only appears if the email is in `NEXT_PUBLIC_PM_QC_EMAILS`.
-Admin email locally: `tunm1@ghn.vn`
+Admin email: `tunm1@ghn.vn` (listed in `NEXT_PUBLIC_PM_QC_EMAILS` and backend `PM_QC_EMAILS`).
 
-### Testing admin pages with browser tools (Playwright)
-**Always inject the session before navigating to any protected page:**
-```js
-// Step 1: go to home first
-await page.goto('http://localhost:3000');
-
-// Step 2: inject admin email into sessionStorage
-await page.evaluate(() => {
-  sessionStorage.setItem('qc_user_email', 'tunm1@ghn.vn');
-});
-
-// Step 3: now navigate to the protected page
-await page.goto('http://localhost:3000/admin');
+### Frontend `.env.local` (required to run locally)
+```
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_PM_QC_EMAILS=tunm1@ghn.vn
+NEXTAUTH_SECRET=preview-test-secret-local
+NEXTAUTH_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=placeholder
+GOOGLE_CLIENT_SECRET=placeholder
 ```
 
-Never navigate directly to `/admin` without setting sessionStorage first — it will redirect to `/`.
+### Testing with Playwright (UI preview/verification)
+
+Because the middleware requires a valid NextAuth JWT cookie, **sessionStorage injection alone is not enough**. The correct approach:
+
+**Step 1 — generate a JWT token:**
+```js
+// run from frontend/ directory
+const { encode } = require('./node_modules/next-auth/jwt');
+const token = await encode({
+  token: { email: 'tunm1@ghn.vn', name: 'Tun M', sub: 'test', iat: Math.floor(Date.now()/1000), exp: Math.floor(Date.now()/1000)+86400 },
+  secret: 'preview-test-secret-local',  // must match NEXTAUTH_SECRET in .env.local
+});
+```
+
+**Step 2 — set the cookie in Playwright context before navigation:**
+```js
+await context.addCookies([{
+  name: 'next-auth.session-token',
+  value: token,
+  domain: 'localhost',
+  path: '/',
+  httpOnly: true,
+  sameSite: 'Lax',
+}]);
+```
+
+**Step 3 — mock `/api/auth/session` so the frontend sees a logged-in user:**
+```js
+await page.route('**/api/auth/session*', async route => {
+  await route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ user: { email: 'tunm1@ghn.vn', name: 'Tun M' }, expires: '2099-01-01' }),
+  });
+});
+```
+
+**Step 4 — navigate directly to the protected page:**
+```js
+await page.goto('http://localhost:3000/feedback');
+```
+
+### UI change verification workflow
+
+**Before AND after every UI change, Claude must:**
+1. Start the dev server if not running: `cd frontend && npm run dev > /tmp/qc_frontend.log 2>&1 &`
+2. Wait until ready: `until curl -s http://localhost:3000 > /dev/null 2>&1; do sleep 2; done`
+3. Run a Playwright script (using the auth cookie approach above) to screenshot the affected page
+4. Send the screenshot to the user to confirm the result looks correct
+5. Only mark the task as done after the screenshot is reviewed
+
+Playwright is available at `frontend/node_modules/.bin/playwright` and can be imported via:
+```js
+import { chromium } from '/home/user/qc-cs-ai/frontend/node_modules/playwright/index.mjs';
+```
 
 ---
 

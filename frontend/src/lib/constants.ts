@@ -111,6 +111,8 @@ export const ACTION_STATUS_LABELS: Record<string, string> = {
   cancelled: "Hủy",
 };
 
+export const ACTION_STATUS_OPTIONS = ["todo", "in_progress", "done", "cancelled"] as const;
+
 export const ACTION_STATUS_COLORS: Record<string, string> = {
   todo: "bg-gray-100 text-gray-700",
   in_progress: "bg-blue-100 text-blue-800",
